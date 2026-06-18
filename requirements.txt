@@ -1,0 +1,61 @@
+# ----------------------------------------------------
+# Framework web y servidor
+# ----------------------------------------------------
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+
+# ----------------------------------------------------
+# Base de datos (PostgreSQL asíncrono)
+# ----------------------------------------------------
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0          # Migraciones
+
+# ----------------------------------------------------
+# Validación y configuración
+# ----------------------------------------------------
+pydantic==2.10.4
+pydantic-settings==2.6.1
+python-dotenv==1.0.1
+
+# ----------------------------------------------------
+# Autenticación JWT y seguridad
+# ----------------------------------------------------
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.20
+
+# ----------------------------------------------------
+# Caché y sesiones (Redis)
+# ----------------------------------------------------
+redis==5.2.0
+
+# ----------------------------------------------------
+# Machine Learning y procesamiento de datos
+# ----------------------------------------------------
+numpy==1.24.4            # Compatible con scikit-learn 1.5
+pandas==2.2.3
+scikit-learn==1.5.2
+catboost==1.2.7
+joblib==1.4.2            # Para serializar modelos (pkl)
+
+# ----------------------------------------------------
+# Utilidades extras (opcionales pero recomendadas)
+# ----------------------------------------------------
+httpx==0.28.1            # Para llamadas HTTP internas (si las hay)
+python-multipart==0.0.20 # Para formularios
+email-validator==2.1.1   # Validación de emails en Pydantic
+
+# ----------------------------------------------------
+# Testing (opcional, pero útil para desarrollo)
+# ----------------------------------------------------
+pytest==8.3.4
+pytest-asyncio==0.24.0
+httpx==0.28.1            # Para probar endpoints
+
+# ----------------------------------------------------
+# Linters y formateadores (opcional)
+# ----------------------------------------------------
+black==24.10.0
+flake8==7.1.0
+mypy==1.14.0

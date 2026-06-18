@@ -1,0 +1,115 @@
+# -----------------------------------------------
+# Entornos virtuales
+# -----------------------------------------------
+venv/
+env/
+.venv/
+env.bak/
+venv.bak/
+pythonenv*
+
+# -----------------------------------------------
+# Archivos de Python
+# -----------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+*.tar.gz
+*.lock
+
+# -----------------------------------------------
+# Pruebas y cobertura
+# -----------------------------------------------
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+*.log
+
+# -----------------------------------------------
+# Base de datos local (SQLite, etc.)
+# -----------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# -----------------------------------------------
+# Variables de entorno
+# -----------------------------------------------
+.env
+.env.local
+.env.*.local
+*.env
+
+# -----------------------------------------------
+# Modelos de Machine Learning (artefactos grandes)
+# NO se suben al repositorio. Se descargan de un bucket S3 o se generan en el servidor.
+# -----------------------------------------------
+ml_models/**/*.pkl
+ml_models/**/*.joblib
+ml_models/**/*.cbm
+ml_models/**/*.onnx
+*.pkl
+*.joblib
+*.cbm
+
+# -----------------------------------------------
+# Archivos de Notebooks (Jupyter)
+# -----------------------------------------------
+.ipynb_checkpoints/
+*.ipynb
+# (opcional: si quieres versionar notebooks de entrenamiento, comenta esta línea)
+
+# -----------------------------------------------
+# Frontend (React / Node)
+# -----------------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+lerna-debug.log*
+dist/
+build/
+*.tsbuildinfo
+
+# -----------------------------------------------
+# Archivos de IDE / Editor
+# -----------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.code-workspace
+
+# -----------------------------------------------
+# Docker
+# -----------------------------------------------
+*.pid
+docker-compose.override.yml
+
+# -----------------------------------------------
+# Archivos de logs y temporales
+# -----------------------------------------------
+logs/
+*.log
+tmp/
+temp/
+
+# -----------------------------------------------
+# Archivos de sistema operativo
+# -----------------------------------------------
+Thumbs.db
+Desktop.ini
