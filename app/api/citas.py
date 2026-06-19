@@ -28,12 +28,15 @@ router = APIRouter(prefix="/api/citas", tags=["citas"])
 @router.get("/", response_model=List[CitaResponseEnriquecida])
 async def listar_citas(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Usuario, Depends(verificar_permiso("citas", "leer"))],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("citas", "leer"))],
     fecha: Optional[date] = Query(None),
     medico_id: Optional[int] = Query(None),
     estado: Optional[str] = Query(None),
 ):
-    return await CitaService.listar(db, fecha=fecha, medico_id=medico_id, estado=estado)
+    effective_medico_id = medico_id
+    if usuario.rol.nombre == "medico":
+        effective_medico_id = usuario.id
+    return await CitaService.listar(db, fecha=fecha, medico_id=effective_medico_id, estado=estado)
 
 
 @router.get("/disponibilidad", response_model=DisponibilidadResponse)

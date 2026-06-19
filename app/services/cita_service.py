@@ -49,6 +49,7 @@ class CitaService:
             "notas": c.notas,
             "created_at": c.created_at,
             "paciente_nombre": f"{c.paciente.nombre} {c.paciente.apellidos}" if c.paciente else None,
+            "paciente_dni": c.paciente.dni if c.paciente else None,
             "medico_nombre": f"{c.medico.nombre} {c.medico.apellidos}" if c.medico else None,
             "semanas_gestacion": dc.edad_gestacional_semanas if dc else None,
             "nivel_riesgo": pred.nivel_riesgo if pred else None,

@@ -44,6 +44,7 @@ class CitaResponse(BaseModel):
 
 class CitaResponseEnriquecida(CitaResponse):
     paciente_nombre: Optional[str] = None
+    paciente_dni: Optional[str] = None
     medico_nombre: Optional[str] = None
     semanas_gestacion: Optional[int] = None
     nivel_riesgo: Optional[str] = None

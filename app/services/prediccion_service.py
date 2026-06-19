@@ -13,6 +13,7 @@ from app.ml_models.prediccion.predecir_s2 import AlgoritmoS2, predecir_s2, prede
 from app.models.datos_clinicos import DatosClinicos
 from app.models.paciente import Paciente
 from app.models.prediccion import Prediccion
+from app.models.triage import Triage
 from app.models.usuario import Usuario
 
 
@@ -91,12 +92,37 @@ class PrediccionService:
         prediccion = await PrediccionService.guardar_consenso(
             db, paciente_id, datos_modelo, resultado, medico
         )
+        await PrediccionService._generar_triage_automatico(
+            db, paciente_id, prediccion.id, medico
+        )
         return {
             "prediccion_id": prediccion.id,
             "prob_consenso": resultado["prob_consenso"],
             "nivel_riesgo": resultado["nivel_riesgo"],
             "modelos": resultado["modelos"],
         }
+
+    @staticmethod
+    async def _generar_triage_automatico(
+        db: AsyncSession,
+        paciente_id: int,
+        prediccion_id: int,
+        medico: Optional[Usuario] = None,
+    ) -> None:
+        """Tras guardar una predicción, registra triaje automáticamente si aún no existe."""
+        from app.services.triage_service import TriageService
+
+        existe = await db.execute(
+            select(Triage.id).where(Triage.paciente_id == paciente_id).limit(1)
+        )
+        if existe.scalar_one_or_none() is not None:
+            return
+        try:
+            await TriageService.ejecutar_para_paciente(
+                db, paciente_id, prediccion_id, medico=medico
+            )
+        except Exception:
+            pass
 
     @staticmethod
     async def obtener_ultima_consenso(db: AsyncSession, paciente_id: int) -> dict | None:
@@ -214,6 +240,9 @@ class PrediccionService:
 
         prediccion = await PrediccionService.guardar(
             db, paciente_id, datos_modelo, resultado, medico
+        )
+        await PrediccionService._generar_triage_automatico(
+            db, paciente_id, prediccion.id, medico
         )
 
         return {

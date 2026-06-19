@@ -163,16 +163,19 @@ class TriageService:
         return triage
 
     @staticmethod
-    async def resumen(db: AsyncSession) -> dict:
-        result = await db.execute(text("""
-            SELECT LOWER(nivel_urgencia) AS nivel, COUNT(*) AS total
+    async def resumen(db: AsyncSession, medico_id: int | None = None) -> dict:
+        medico_filter = "AND p.medico_asignado_id = :medico_id" if medico_id else ""
+        result = await db.execute(text(f"""
+            SELECT LOWER(t.nivel_urgencia) AS nivel, COUNT(*) AS total
             FROM triage t
+            JOIN pacientes p ON p.id = t.paciente_id
             WHERE t.id IN (
                 SELECT DISTINCT ON (paciente_id) id FROM triage
                 ORDER BY paciente_id, fecha_triage DESC
             )
-            GROUP BY LOWER(nivel_urgencia)
-        """))
+            {medico_filter}
+            GROUP BY LOWER(t.nivel_urgencia)
+        """), {"medico_id": medico_id} if medico_id else {})
         counts = {row["nivel"]: row["total"] for row in result.mappings().all()}
         return {
             "rojo": counts.get("rojo", 0),
@@ -186,19 +189,37 @@ class TriageService:
         db: AsyncSession,
         nivel: str | None = None,
         algoritmo: str = "consenso",
+        medico_id: int | None = None,
     ) -> list[TriagePriorizadoResponse]:
         col_map = {
-            "arbol": "LOWER(urgencia_arbol)",
-            "ordinal": "LOWER(urgencia_ordinal)",
-            "consenso": "LOWER(nivel_urgencia)",
+            "arbol": "LOWER(v.urgencia_arbol)",
+            "ordinal": "LOWER(v.urgencia_ordinal)",
+            "consenso": "LOWER(v.nivel_urgencia)",
         }
-        col = col_map.get(algoritmo, "LOWER(nivel_urgencia)")
+        col = col_map.get(algoritmo, "LOWER(v.nivel_urgencia)")
 
-        sql = "SELECT * FROM vista_triage_priorizado"
+        sql = """
+            SELECT v.* FROM vista_triage_priorizado v
+            JOIN pacientes p ON p.id = v.paciente_id
+        """
         params: dict = {}
+        conditions: list[str] = []
+        if medico_id:
+            conditions.append("""
+                (
+                  p.medico_asignado_id = :medico_id
+                  OR EXISTS (
+                    SELECT 1 FROM citas c
+                    WHERE c.paciente_id = p.id AND c.medico_id = :medico_id
+                  )
+                )
+            """)
+            params["medico_id"] = medico_id
         if nivel:
-            sql += f" WHERE {col} = :nivel"
+            conditions.append("LOWER(v.nivel_urgencia) = :nivel")
             params["nivel"] = nivel.lower()
+        if conditions:
+            sql += " WHERE " + " AND ".join(conditions)
         result = await db.execute(text(sql), params)
         rows = result.mappings().all()
         out = []
@@ -236,4 +257,88 @@ class TriageService:
         ])
         return await TriageService.guardar(
             db, paciente_id, resultado_s3, prediccion.id, nivel_consenso
+        )
+
+    @staticmethod
+    async def procesar_pendientes(
+        db: AsyncSession,
+        medico_id: int | None = None,
+        forzar: bool = False,
+        medico: Optional[Usuario] = None,
+    ) -> int:
+        """
+        Genera triaje para pacientes elegibles:
+        - Con predicción pero sin triaje (modo normal).
+        - Con datos clínicos completos: ejecuta predicción + triaje si falta predicción.
+        - Con forzar=True: re-triage de todos los pacientes elegibles del médico (o todos si admin).
+        """
+        medico_filter = ""
+        if medico_id:
+            medico_filter = """
+              AND (
+                p.medico_asignado_id = :medico_id
+                OR EXISTS (
+                  SELECT 1 FROM citas c
+                  WHERE c.paciente_id = p.id AND c.medico_id = :medico_id
+                )
+              )
+            """
+
+        pending_filter = ""
+        if not forzar:
+            pending_filter = """
+              AND NOT EXISTS (SELECT 1 FROM triage t WHERE t.paciente_id = p.id)
+            """
+
+        sql = f"""
+            SELECT p.id AS paciente_id,
+              (
+                SELECT pr.id FROM predicciones pr
+                WHERE pr.paciente_id = p.id
+                ORDER BY pr.fecha_prediccion DESC
+                LIMIT 1
+              ) AS prediccion_id
+            FROM pacientes p
+            INNER JOIN datos_clinicos dc ON dc.paciente_id = p.id
+            WHERE p.activo = true
+              AND dc.bmi IS NOT NULL
+              AND dc.longitud_cervical_mm IS NOT NULL
+              AND dc.edad_gestacional_semanas IS NOT NULL
+              {pending_filter}
+              {medico_filter}
+        """
+        params: dict = {}
+        if medico_id:
+            params["medico_id"] = medico_id
+
+        result = await db.execute(text(sql), params)
+        rows = result.mappings().all()
+
+        procesados = 0
+        for row in rows:
+            paciente_id = row["paciente_id"]
+            prediccion_id = row["prediccion_id"]
+            try:
+                if prediccion_id is None:
+                    await PrediccionService.ejecutar_consenso_para_paciente(
+                        db, paciente_id, medico=medico
+                    )
+                else:
+                    await TriageService.ejecutar_para_paciente(
+                        db, paciente_id, prediccion_id, medico=medico
+                    )
+                procesados += 1
+            except Exception:
+                continue
+        return procesados
+
+    @staticmethod
+    async def procesar_pendientes_medico(
+        db: AsyncSession,
+        medico_id: int,
+        medico: Optional[Usuario] = None,
+        forzar: bool = False,
+    ) -> int:
+        return await TriageService.procesar_pendientes(
+            db, medico_id=medico_id, forzar=forzar, medico=medico
         )

@@ -15,6 +15,7 @@ from app.schemas.triage import (
     TriagePriorizadoResponse,
     TriageResumenResponse,
     TriageResponse,
+    TriageSyncResponse,
 )
 from app.services.triage_service import TriageService
 
@@ -68,9 +69,10 @@ async def ejecutar_triage_paciente(
 )
 async def resumen_triage(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
 ):
-    return await TriageService.resumen(db)
+    medico_id = usuario.id if usuario.rol.nombre == "medico" else None
+    return await TriageService.resumen(db, medico_id=medico_id)
 
 
 @router.get(
@@ -80,16 +82,45 @@ async def resumen_triage(
 )
 async def listar_priorizados(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
     nivel: str | None = Query(None, description="rojo|naranja|amarillo|verde"),
     algoritmo: str = Query("consenso", description="consenso|arbol|ordinal"),
 ):
     try:
-        return await TriageService.listar_priorizados(db, nivel=nivel, algoritmo=algoritmo)
+        medico_id = usuario.id if usuario.rol.nombre == "medico" else None
+        await TriageService.procesar_pendientes(
+            db, medico_id=medico_id, forzar=False, medico=usuario
+        )
+        await db.commit()
+        return await TriageService.listar_priorizados(db, nivel=nivel, algoritmo=algoritmo, medico_id=medico_id)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=f"Error al consultar vista de triage: {exc}",
+        ) from exc
+
+
+@router.post(
+    "/sincronizar",
+    response_model=TriageSyncResponse,
+    summary="Procesar todos los pacientes elegibles y enviarlos a triaje",
+)
+async def sincronizar_triage(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("triage", "ejecutar"))],
+):
+    """Ejecuta predicción (si falta) y triaje para todos los pacientes con datos clínicos completos."""
+    try:
+        medico_id = usuario.id if usuario.rol.nombre == "medico" else None
+        procesados = await TriageService.procesar_pendientes(
+            db, medico_id=medico_id, forzar=True, medico=usuario
+        )
+        await db.commit()
+        return TriageSyncResponse(procesados=procesados)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al sincronizar triaje: {exc}",
         ) from exc
 
 

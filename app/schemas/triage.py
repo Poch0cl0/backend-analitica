@@ -61,3 +61,7 @@ class TriageResumenResponse(BaseModel):
     naranja: int
     amarillo: int
     verde: int
+
+
+class TriageSyncResponse(BaseModel):
+    procesados: int
