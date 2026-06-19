@@ -10,7 +10,12 @@ from app.core.exceptions import BadRequestError, NotFoundError
 from app.core.security import verificar_permiso
 from app.models.usuario import Usuario
 from app.schemas.s3 import PacienteS3Input
-from app.schemas.triage import TriageEjecutadoResponse, TriagePriorizadoResponse, TriageResponse
+from app.schemas.triage import (
+    TriageEjecutadoResponse,
+    TriagePriorizadoResponse,
+    TriageResumenResponse,
+    TriageResponse,
+)
 from app.services.triage_service import TriageService
 
 router = APIRouter(prefix="/api/triage", tags=["triage"])
@@ -57,6 +62,18 @@ async def ejecutar_triage_paciente(
 
 
 @router.get(
+    "/resumen",
+    response_model=TriageResumenResponse,
+    summary="Conteo de pacientes por nivel de urgencia",
+)
+async def resumen_triage(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
+):
+    return await TriageService.resumen(db)
+
+
+@router.get(
     "/priorizados",
     response_model=List[TriagePriorizadoResponse],
     summary="Lista de pacientes priorizados por urgencia",
@@ -64,9 +81,10 @@ async def ejecutar_triage_paciente(
 async def listar_priorizados(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
+    nivel: str | None = Query(None, description="rojo|naranja|amarillo|verde"),
 ):
     try:
-        return await TriageService.listar_priorizados(db)
+        return await TriageService.listar_priorizados(db, nivel=nivel)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

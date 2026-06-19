@@ -7,6 +7,37 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict
 
 
+class ModeloConsensoItem(BaseModel):
+    prob_prematuro: float
+    semanas_estimadas: float
+
+
+class ModelosConsenso(BaseModel):
+    random_forest: ModeloConsensoItem
+    catboost: ModeloConsensoItem
+    svm: ModeloConsensoItem
+
+
+class PrediccionConsensoResponse(BaseModel):
+    prediccion_id: int
+    prob_consenso: float
+    nivel_riesgo: str
+    modelos: ModelosConsenso
+
+
+class PrediccionUltimaResponse(BaseModel):
+    prediccion_id: Optional[int] = None
+    prob_consenso: Optional[float] = None
+    nivel_riesgo: Optional[str] = None
+    modelos: Optional[ModelosConsenso] = None
+    fecha_prediccion: Optional[datetime] = None
+
+
+class PrediccionAnalizarResponse(BaseModel):
+    datos_clinicos: dict[str, Any]
+    prediccion: PrediccionConsensoResponse
+
+
 class PrediccionPorPacienteResponse(BaseModel):
     paciente_id: int
     paciente_nombre: str
@@ -24,8 +55,12 @@ class PrediccionResponse(BaseModel):
 
     id: int
     paciente_id: int
+    prob_random_forest: Optional[Decimal] = None
+    prob_catboost: Optional[Decimal] = None
     prob_logistica: Optional[Decimal] = None
     prob_consenso: Optional[Decimal] = None
+    semanas_estimadas_rf: Optional[int] = None
+    semanas_estimadas_cb: Optional[int] = None
     semanas_estimadas_logistica: Optional[int] = None
     semanas_estimadas_consenso: Optional[int] = None
     nivel_riesgo: Optional[str] = None

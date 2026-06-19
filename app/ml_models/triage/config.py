@@ -2,13 +2,16 @@
 
 from pathlib import Path
 
+from app.ml_models.paths import resolve_ml_models_dir
+
 BASE = Path(__file__).resolve().parent.parent
+_MODELS = resolve_ml_models_dir()
 
 CSV_ENTRENAMIENTO = BASE / "datos_limpios" / "natality_entrenamiento.csv"
 CSV_LIMPIO = BASE / "datos_limpios" / "natality_limpio_completo.csv"
-MODELO_S2 = BASE / "modelos" / "prematuro_logistic.pkl"
-MODELO_S3_ARBOL = BASE / "modelos" / "s4_arbol_decision.pkl"
-MODELO_S3_ORDINAL = BASE / "modelos" / "s4_logistica_ordinal.pkl"
+MODELO_S2 = _MODELS / "prematuro_logistic.pkl"
+MODELO_S3_ARBOL = _MODELS / "s4_arbol_decision.pkl"
+MODELO_S3_ORDINAL = _MODELS / "s4_logistica_ordinal.pkl"
 
 CAMPOS_ENTRADA = [
     "mager", "rf_ppterm", "dplural", "num_condiciones_cronicas",

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
 
     ML_PREDICTION_PATH: str = "app/ml_models/prediccion"
     ML_TRIAGE_PATH: str = "app/ml_models/triage"
-    ML_MODELS_PATH: str = "app/ml_models/modelos"
+    ML_MODELS_PATH: str = "app/ml_models/models"
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod

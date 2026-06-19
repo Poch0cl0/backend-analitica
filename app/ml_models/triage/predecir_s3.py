@@ -48,12 +48,12 @@ def predecir_urgencia(paciente: dict) -> dict:
     if not MODELO_S3_ARBOL.exists():
         raise FileNotFoundError(
             f"Modelo S-3 no encontrado: {MODELO_S3_ARBOL}. "
-            "Coloque los archivos .pkl en app/ml_models/modelos/"
+            "Coloque los archivos .pkl en app/ml_models/models/"
         )
     if not MODELO_S3_ORDINAL.exists():
         raise FileNotFoundError(
             f"Modelo S-3 no encontrado: {MODELO_S3_ORDINAL}. "
-            "Coloque los archivos .pkl en app/ml_models/modelos/"
+            "Coloque los archivos .pkl en app/ml_models/models/"
         )
 
     X = features_s3_desde_paciente(paciente)

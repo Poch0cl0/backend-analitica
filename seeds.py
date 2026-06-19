@@ -35,6 +35,7 @@ PERMISOS = [
     (1, "datos_clinicos", "actualizar"),
     (1, "prediccion",     "ejecutar"),
     (1, "triage",         "leer"),       (1, "triage",         "ejecutar"),
+    (1, "recomendacion",  "leer"),       (1, "recomendacion",  "ejecutar"),
     (1, "reportes",       "exportar"),
     # medico
     (2, "pacientes",      "leer"),
@@ -43,6 +44,7 @@ PERMISOS = [
     (2, "datos_clinicos", "actualizar"),
     (2, "prediccion",     "ejecutar"),
     (2, "triage",         "leer"),       (2, "triage",         "ejecutar"),
+    (2, "recomendacion",  "leer"),       (2, "recomendacion",  "ejecutar"),
     (2, "reportes",       "exportar"),
     # secretaria
     (3, "pacientes",      "leer"),       (3, "pacientes",      "crear"),
@@ -97,6 +99,15 @@ CATALOGO_INTERVENCIONES = [
     {"codigo": "INT-008", "nombre": "Control de tensión arterial",                    "categoria": "farmacologica"},
     {"codigo": "INT-009", "nombre": "Evaluación por endocrinología",                  "categoria": "interconsulta"},
     {"codigo": "INT-010", "nombre": "Tamizaje de infecciones de transmisión sexual",  "categoria": "laboratorio"},
+]
+
+CATALOGO_INTERVENCIONES_S4 = [
+    {"codigo": "control_prenatal_rutinario", "nombre": "Control prenatal rutinario",           "categoria": "seguimiento"},
+    {"codigo": "seguimiento_estrecho_lc",    "nombre": "Seguimiento estrecho por LC corta",    "categoria": "seguimiento"},
+    {"codigo": "progesterona_vaginal",       "nombre": "Progesterona vaginal",                 "categoria": "farmacologica"},
+    {"codigo": "tratar_infeccion",           "nombre": "Tratar infección activa",              "categoria": "farmacologica"},
+    {"codigo": "vigilancia_hta_multiple",    "nombre": "Vigilancia HTA / embarazo múltiple",   "categoria": "seguimiento"},
+    {"codigo": "derivacion_alto_riesgo",     "nombre": "Derivación a alto riesgo",             "categoria": "interconsulta"},
 ]
 
 PARAMETROS_SISTEMA = [
@@ -188,15 +199,39 @@ async def seed_roles(db: AsyncSession) -> None:
 
 async def seed_permisos(db: AsyncSession) -> None:
     count = (await db.execute(text("SELECT COUNT(*) FROM permisos"))).scalar()
-    if count > 0:
-        print("  [SKIP] permisos — ya existen datos")
-        return
-    for rol_id, modulo, accion in PERMISOS:
-        await db.execute(
-            text("INSERT INTO permisos (rol_id, modulo, accion) VALUES (:r, :m, :a)"),
+    if count == 0:
+        for rol_id, modulo, accion in PERMISOS:
+            await db.execute(
+                text("INSERT INTO permisos (rol_id, modulo, accion) VALUES (:r, :m, :a)"),
+                {"r": rol_id, "m": modulo, "a": accion},
+            )
+        print(f"  [OK]   permisos — {len(PERMISOS)} insertados")
+    else:
+        print("  [SKIP] permisos base — ya existen datos")
+        await seed_permisos_recomendacion(db)
+
+
+async def seed_permisos_recomendacion(db: AsyncSession) -> None:
+    nuevos = [
+        (1, "recomendacion", "leer"), (1, "recomendacion", "ejecutar"),
+        (2, "recomendacion", "leer"), (2, "recomendacion", "ejecutar"),
+    ]
+    insertados = 0
+    for rol_id, modulo, accion in nuevos:
+        result = await db.execute(
+            text("""
+                INSERT INTO permisos (rol_id, modulo, accion)
+                VALUES (:r, :m, :a)
+                ON CONFLICT (rol_id, modulo, accion) DO NOTHING
+            """),
             {"r": rol_id, "m": modulo, "a": accion},
         )
-    print(f"  [OK]   permisos — {len(PERMISOS)} insertados")
+        if result.rowcount:
+            insertados += 1
+    if insertados:
+        print(f"  [OK]   permisos recomendacion — {insertados} insertados")
+    else:
+        print("  [SKIP] permisos recomendacion — ya existen")
 
 
 async def seed_usuarios(db: AsyncSession) -> list[int]:
@@ -224,18 +259,38 @@ async def seed_usuarios(db: AsyncSession) -> list[int]:
 
 async def seed_catalogo(db: AsyncSession) -> None:
     count = (await db.execute(text("SELECT COUNT(*) FROM catalogo_intervenciones"))).scalar()
-    if count > 0:
-        print("  [SKIP] catalogo_intervenciones — ya existen datos")
-        return
-    for item in CATALOGO_INTERVENCIONES:
-        await db.execute(
+    if count == 0:
+        for item in CATALOGO_INTERVENCIONES:
+            await db.execute(
+                text("""
+                    INSERT INTO catalogo_intervenciones (codigo, nombre, categoria)
+                    VALUES (:codigo, :nombre, :categoria)
+                """),
+                item,
+            )
+        print(f"  [OK]   catalogo_intervenciones — {len(CATALOGO_INTERVENCIONES)} insertados")
+    else:
+        print("  [SKIP] catalogo_intervenciones — ya existen datos base")
+    await seed_catalogo_s4(db)
+
+
+async def seed_catalogo_s4(db: AsyncSession) -> None:
+    insertados = 0
+    for item in CATALOGO_INTERVENCIONES_S4:
+        result = await db.execute(
             text("""
                 INSERT INTO catalogo_intervenciones (codigo, nombre, categoria)
                 VALUES (:codigo, :nombre, :categoria)
+                ON CONFLICT (codigo) DO NOTHING
             """),
             item,
         )
-    print(f"  [OK]   catalogo_intervenciones — {len(CATALOGO_INTERVENCIONES)} insertados")
+        if result.rowcount:
+            insertados += 1
+    if insertados:
+        print(f"  [OK]   catalogo_intervenciones S-4 — {insertados} insertados")
+    else:
+        print("  [SKIP] catalogo_intervenciones S-4 — ya existen")
 
 
 async def seed_parametros(db: AsyncSession) -> None:

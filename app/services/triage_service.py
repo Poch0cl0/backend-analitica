@@ -28,6 +28,16 @@ def _consenso_urgencia(urgencias: list[str]) -> str:
     return urgencias[0].upper()
 
 
+def _acciones_por_nivel(nivel: str) -> list[str]:
+    acciones = {
+        "rojo": ["Hospitalización inmediata", "Corticoides", "Alertar equipo"],
+        "naranja": ["Seguimiento estrecho", "Control en 48h", "Reevaluar LC"],
+        "amarillo": ["Control prenatal intensificado", "Monitoreo semanal"],
+        "verde": ["Control prenatal rutinario"],
+    }
+    return acciones.get(nivel.lower(), [])
+
+
 class TriageService:
     @staticmethod
     def ejecutar_modelo(datos: dict) -> dict:
@@ -153,10 +163,42 @@ class TriageService:
         return triage
 
     @staticmethod
-    async def listar_priorizados(db: AsyncSession) -> list[TriagePriorizadoResponse]:
-        result = await db.execute(text("SELECT * FROM vista_triage_priorizado"))
+    async def resumen(db: AsyncSession) -> dict:
+        result = await db.execute(text("""
+            SELECT LOWER(nivel_urgencia) AS nivel, COUNT(*) AS total
+            FROM triage t
+            WHERE t.id IN (
+                SELECT DISTINCT ON (paciente_id) id FROM triage
+                ORDER BY paciente_id, fecha_triage DESC
+            )
+            GROUP BY LOWER(nivel_urgencia)
+        """))
+        counts = {row["nivel"]: row["total"] for row in result.mappings().all()}
+        return {
+            "rojo": counts.get("rojo", 0),
+            "naranja": counts.get("naranja", 0),
+            "amarillo": counts.get("amarillo", 0),
+            "verde": counts.get("verde", 0),
+        }
+
+    @staticmethod
+    async def listar_priorizados(
+        db: AsyncSession,
+        nivel: str | None = None,
+    ) -> list[TriagePriorizadoResponse]:
+        sql = "SELECT * FROM vista_triage_priorizado"
+        params: dict = {}
+        if nivel:
+            sql += " WHERE LOWER(nivel_urgencia) = :nivel"
+            params["nivel"] = nivel.lower()
+        result = await db.execute(text(sql), params)
         rows = result.mappings().all()
-        return [TriagePriorizadoResponse(**dict(row)) for row in rows]
+        out = []
+        for row in rows:
+            data = dict(row)
+            data["acciones_urgentes"] = _acciones_por_nivel(data.get("nivel_urgencia", ""))
+            out.append(TriagePriorizadoResponse(**data))
+        return out
 
     @staticmethod
     async def recalcular(

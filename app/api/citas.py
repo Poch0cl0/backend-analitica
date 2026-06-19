@@ -12,6 +12,8 @@ from app.models.usuario import Usuario
 from app.schemas.cita import (
     CitaCreate,
     CitaResponse,
+    CitaResponseEnriquecida,
+    CitaUpdate,
     CitaUpdateEstado,
     DisponibilidadResponse,
     DisponibilidadSlot,
@@ -21,7 +23,7 @@ from app.services.cita_service import CitaService
 router = APIRouter(prefix="/api/citas", tags=["citas"])
 
 
-@router.get("/", response_model=List[CitaResponse])
+@router.get("/", response_model=List[CitaResponseEnriquecida])
 async def listar_citas(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Usuario, Depends(verificar_permiso("citas", "leer"))],
@@ -30,15 +32,6 @@ async def listar_citas(
     estado: Optional[str] = Query(None),
 ):
     return await CitaService.listar(db, fecha=fecha, medico_id=medico_id, estado=estado)
-
-
-@router.post("/", response_model=CitaResponse, status_code=201)
-async def agendar_cita(
-    data: CitaCreate,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Usuario, Depends(verificar_permiso("citas", "crear"))],
-):
-    return await CitaService.crear(db, data)
 
 
 @router.get("/disponibilidad", response_model=DisponibilidadResponse)
@@ -50,6 +43,34 @@ async def obtener_disponibilidad(
 ):
     slots: List[DisponibilidadSlot] = await CitaService.disponibilidad(db, medico_id, fecha)
     return DisponibilidadResponse(medico_id=medico_id, fecha=str(fecha), slots=slots)
+
+
+@router.post("/", response_model=CitaResponse, status_code=201)
+async def agendar_cita(
+    data: CitaCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("citas", "crear"))],
+):
+    return await CitaService.crear(db, data)
+
+
+@router.get("/{cita_id}", response_model=CitaResponseEnriquecida)
+async def obtener_cita(
+    cita_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("citas", "leer"))],
+):
+    return await CitaService.obtener_enriquecida(db, cita_id)
+
+
+@router.put("/{cita_id}", response_model=CitaResponseEnriquecida)
+async def actualizar_cita(
+    cita_id: int,
+    data: CitaUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("citas", "actualizar"))],
+):
+    return await CitaService.actualizar(db, cita_id, data)
 
 
 @router.put("/{cita_id}/estado", response_model=CitaResponse)

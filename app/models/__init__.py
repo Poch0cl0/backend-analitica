@@ -2,6 +2,7 @@
 
 from app.models.auditoria import Auditoria
 from app.models.cita import Cita
+from app.models.contacto import ContactoPaciente
 from app.models.datos_clinicos import DatosClinicos
 from app.models.intervencion import CatalogoIntervencion
 from app.models.paciente import Paciente
@@ -17,6 +18,7 @@ __all__ = [
     "Auditoria",
     "CatalogoIntervencion",
     "Cita",
+    "ContactoPaciente",
     "DatosClinicos",
     "Paciente",
     "ParametroSistema",

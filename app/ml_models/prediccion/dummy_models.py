@@ -10,6 +10,7 @@ import joblib
 import numpy as np
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.preprocessing import LabelEncoder
+from sklearn.svm import LinearSVC
 
 
 def _modelo_prematuro_dummy() -> dict:
@@ -66,11 +67,49 @@ def _modelo_semanas_dummy() -> dict:
 
 def generar_modelos_dummy(destino: Path) -> None:
     destino.mkdir(parents=True, exist_ok=True)
-    joblib.dump(_modelo_prematuro_dummy(), destino / "prematuro_logistic.pkl")
-    joblib.dump(_modelo_semanas_dummy(),   destino / "semanas_lineal.pkl")
+    pre = _modelo_prematuro_dummy()
+    sem = _modelo_semanas_dummy()
+    joblib.dump(pre, destino / "prematuro_logistic.pkl")
+    joblib.dump(sem, destino / "semanas_lineal.pkl")
+    joblib.dump(pre, destino / "prematuro_random_forest.pkl")
+    joblib.dump(sem, destino / "semanas_random_forest.pkl")
+    joblib.dump(pre, destino / "prematuro_mejor_modelo.pkl")
+    joblib.dump(sem, destino / "semanas_mejor_modelo.pkl")
+
+    X = np.array([
+        [20, 0, 1, 0, 0, 1, 22.0, 35.0, 38],
+        [30, 1, 1, 1, 0, 0, 28.0, 22.0, 30],
+        [25, 0, 2, 2, 1, 1, 31.0, 18.0, 28],
+    ], dtype=float)
+    y = np.array([0, 1, 1])
+    enc = LabelEncoder().fit(["N", "Y"])
+    X[:, 1] = enc.transform(["N", "Y", "N"])
+    svm = LinearSVC(random_state=42)
+    svm.fit(X, y)
+    joblib.dump(svm, destino / "prematuro_svm.pkl")
+    joblib.dump(LinearRegression().fit(X, np.array([38.0, 31.0, 28.0])), destino / "semanas_svm.pkl")
+
+    try:
+        from catboost import CatBoostClassifier, CatBoostRegressor
+
+        cols = ["mager", "rf_ppterm", "dplural", "num_condiciones_cronicas",
+                "infeccion_activa", "priorlive", "bmi", "cl_sim_mm", "combgest"]
+        import pandas as pd
+
+        df = pd.DataFrame(X, columns=cols)
+        clf = CatBoostClassifier(iterations=10, verbose=0, random_state=42)
+        clf.fit(df, y)
+        clf.save_model(str(destino / "prematuro_catboost.cbm"))
+        reg = CatBoostRegressor(iterations=10, verbose=0, random_state=42)
+        reg.fit(df, np.array([38.0, 31.0, 28.0]))
+        reg.save_model(str(destino / "semanas_catboost.cbm"))
+    except ImportError:
+        print("[WARN] catboost no instalado; omitiendo .cbm (consenso requiere catboost)")
+
     print(f"[OK] Modelos dummy generados en: {destino}")
 
 
 if __name__ == "__main__":
-    base = Path(__file__).resolve().parent.parent / "modelos"
-    generar_modelos_dummy(base)
+    from app.ml_models.paths import resolve_ml_models_dir
+
+    generar_modelos_dummy(resolve_ml_models_dir())

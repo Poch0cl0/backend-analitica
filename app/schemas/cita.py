@@ -19,6 +19,15 @@ class CitaUpdateEstado(BaseModel):
     estado: str = Field(..., pattern="^(programada|en_atencion|cumplida|cancelada)$")
 
 
+class CitaUpdate(BaseModel):
+    fecha_hora: Optional[datetime] = None
+    medico_id: Optional[int] = None
+    estado: Optional[str] = Field(None, pattern="^(programada|en_atencion|cumplida|cancelada)$")
+    motivo: Optional[str] = None
+    notas: Optional[str] = None
+    duracion_minutos: Optional[int] = Field(None, ge=15, le=120)
+
+
 class CitaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +40,13 @@ class CitaResponse(BaseModel):
     motivo: Optional[str] = None
     notas: Optional[str] = None
     created_at: datetime
+
+
+class CitaResponseEnriquecida(CitaResponse):
+    paciente_nombre: Optional[str] = None
+    medico_nombre: Optional[str] = None
+    semanas_gestacion: Optional[int] = None
+    nivel_riesgo: Optional[str] = None
 
 
 class DisponibilidadSlot(BaseModel):

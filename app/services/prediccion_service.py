@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.ml_models.prediccion.predecir_s2 import AlgoritmoS2, predecir_s2
+from app.ml_models.prediccion.predecir_s2 import AlgoritmoS2, predecir_s2, predecir_s2_consenso
 from app.models.datos_clinicos import DatosClinicos
 from app.models.paciente import Paciente
 from app.models.prediccion import Prediccion
@@ -46,13 +46,11 @@ class PrediccionService:
         return predecir_s2(datos, algoritmo=algoritmo)
 
     @staticmethod
-    async def ejecutar_para_paciente(
-        db: AsyncSession,
-        paciente_id: int,
-        algoritmo: AlgoritmoS2 = "mejor",
-        medico: Optional[Usuario] = None,
-    ) -> dict:
-        """Obtiene datos clínicos del paciente y ejecuta S-2 automáticamente."""
+    def ejecutar_consenso(datos: dict) -> dict:
+        return predecir_s2_consenso(datos)
+
+    @staticmethod
+    async def _obtener_paciente_con_datos(db: AsyncSession, paciente_id: int) -> tuple[Paciente, DatosClinicos]:
         result = await db.execute(
             select(Paciente)
             .options(selectinload(Paciente.datos_clinicos))
@@ -79,20 +77,63 @@ class PrediccionService:
             raise BadRequestError(
                 f"Faltan datos clínicos obligatorios para la predicción: {faltantes}"
             )
+        return paciente, dc
 
+    @staticmethod
+    async def ejecutar_consenso_para_paciente(
+        db: AsyncSession,
+        paciente_id: int,
+        medico: Optional[Usuario] = None,
+    ) -> dict:
+        paciente, dc = await PrediccionService._obtener_paciente_con_datos(db, paciente_id)
         datos_modelo = datos_clinicos_a_s2(paciente, dc)
-        resultado = predecir_s2(datos_modelo, algoritmo=algoritmo)
-
-        prediccion = await PrediccionService.guardar(
+        resultado = predecir_s2_consenso(datos_modelo)
+        prediccion = await PrediccionService.guardar_consenso(
             db, paciente_id, datos_modelo, resultado, medico
         )
+        return {
+            "prediccion_id": prediccion.id,
+            "prob_consenso": resultado["prob_consenso"],
+            "nivel_riesgo": resultado["nivel_riesgo"],
+            "modelos": resultado["modelos"],
+        }
+
+    @staticmethod
+    async def obtener_ultima_consenso(db: AsyncSession, paciente_id: int) -> dict | None:
+        result = await db.execute(
+            select(Prediccion)
+            .where(Prediccion.paciente_id == paciente_id)
+            .order_by(Prediccion.fecha_prediccion.desc())
+            .limit(1)
+        )
+        pred = result.scalar_one_or_none()
+        if pred is None or pred.prob_consenso is None:
+            return None
+
+        def _item(prob, sem) -> dict | None:
+            if prob is None:
+                return None
+            return {
+                "prob_prematuro": float(prob),
+                "semanas_estimadas": float(sem) if sem is not None else 0.0,
+            }
+
+        rf = _item(pred.prob_random_forest, pred.semanas_estimadas_rf)
+        cb = _item(pred.prob_catboost, pred.semanas_estimadas_cb)
+        svm = _item(pred.prob_logistica, pred.semanas_estimadas_logistica)
+        if not all([rf, cb, svm]):
+            return None
 
         return {
-            "paciente_id":     paciente_id,
-            "paciente_nombre": f"{paciente.nombre} {paciente.apellidos}",
-            "prediccion_id":   prediccion.id,
-            "datos_entrada":   datos_modelo,
-            **resultado,
+            "prediccion_id": pred.id,
+            "prob_consenso": float(pred.prob_consenso),
+            "nivel_riesgo": pred.nivel_riesgo,
+            "modelos": {
+                "random_forest": rf,
+                "catboost": cb,
+                "svm": svm,
+            },
+            "fecha_prediccion": pred.fecha_prediccion,
         }
 
     @staticmethod
@@ -130,6 +171,58 @@ class PrediccionService:
         await db.flush()
         await db.refresh(prediccion)
         return prediccion
+
+    @staticmethod
+    async def guardar_consenso(
+        db: AsyncSession,
+        paciente_id: int,
+        datos_entrada: dict,
+        resultado: dict,
+        medico: Optional[Usuario] = None,
+    ) -> Prediccion:
+        m = resultado["modelos"]
+        prediccion = Prediccion(
+            paciente_id=paciente_id,
+            datos_entrada_snapshot={**datos_entrada, "modo": "consenso"},
+            prob_random_forest=Decimal(str(m["random_forest"]["prob_prematuro"])),
+            semanas_estimadas_rf=int(round(m["random_forest"]["semanas_estimadas"])),
+            prob_catboost=Decimal(str(m["catboost"]["prob_prematuro"])),
+            semanas_estimadas_cb=int(round(m["catboost"]["semanas_estimadas"])),
+            prob_logistica=Decimal(str(m["svm"]["prob_prematuro"])),
+            semanas_estimadas_logistica=int(round(m["svm"]["semanas_estimadas"])),
+            prob_consenso=Decimal(str(resultado["prob_consenso"])),
+            semanas_estimadas_consenso=int(round(resultado["semanas_estimadas_consenso"])),
+            nivel_riesgo=resultado["nivel_riesgo"],
+            medico_id=medico.id if medico else None,
+        )
+        db.add(prediccion)
+        await db.flush()
+        await db.refresh(prediccion)
+        return prediccion
+
+    @staticmethod
+    async def ejecutar_para_paciente(
+        db: AsyncSession,
+        paciente_id: int,
+        algoritmo: AlgoritmoS2 = "mejor",
+        medico: Optional[Usuario] = None,
+    ) -> dict:
+        """Obtiene datos clínicos del paciente y ejecuta S-2 automáticamente."""
+        paciente, dc = await PrediccionService._obtener_paciente_con_datos(db, paciente_id)
+        datos_modelo = datos_clinicos_a_s2(paciente, dc)
+        resultado = predecir_s2(datos_modelo, algoritmo=algoritmo)
+
+        prediccion = await PrediccionService.guardar(
+            db, paciente_id, datos_modelo, resultado, medico
+        )
+
+        return {
+            "paciente_id":     paciente_id,
+            "paciente_nombre": f"{paciente.nombre} {paciente.apellidos}",
+            "prediccion_id":   prediccion.id,
+            "datos_entrada":   datos_modelo,
+            **resultado,
+        }
 
     @staticmethod
     async def listar_por_paciente(db: AsyncSession, paciente_id: int) -> list[Prediccion]:

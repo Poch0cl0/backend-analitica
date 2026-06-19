@@ -17,9 +17,9 @@ import joblib
 import numpy as np
 import pandas as pd
 
-from app.core.config import settings
+from app.ml_models.paths import resolve_ml_models_dir
 
-_DIR = Path(settings.ML_MODELS_PATH)
+_DIR = resolve_ml_models_dir()
 
 AlgoritmoS2 = Literal["catboost", "mejor", "logistic", "random_forest", "svm"]
 
@@ -144,4 +144,49 @@ def predecir_s2(datos: dict, algoritmo: AlgoritmoS2 = "mejor") -> dict:
         "semanas_estimadas": round(semanas, 1),
         "algoritmo_usado":   _NOMBRES_DISPLAY[algoritmo],
         "archivo_modelo":    archivo_pre,
+    }
+
+
+_ALGORITMOS_CONSENSO: tuple[AlgoritmoS2, ...] = ("random_forest", "catboost", "svm")
+
+
+def _nivel_riesgo(prob: float) -> str:
+    if prob >= 0.7:
+        return "critico"
+    if prob >= 0.5:
+        return "alto"
+    if prob >= 0.3:
+        return "medio"
+    return "bajo"
+
+
+def predecir_s2_consenso(datos: dict) -> dict:
+    """Ejecuta RF, CatBoost y SVM; retorna promedio y resultado por modelo."""
+    faltantes = [c for c in CAMPOS_S2 if c not in datos]
+    if faltantes:
+        raise ValueError(f"Faltan campos de entrada para S-2: {faltantes}")
+
+    modelos: dict[str, dict] = {}
+    probs: list[float] = []
+
+    for alg in _ALGORITMOS_CONSENSO:
+        res = predecir_s2(datos, algoritmo=alg)
+        modelos[alg] = {
+            "prob_prematuro": res["prob_prematuro"],
+            "semanas_estimadas": res["semanas_estimadas"],
+        }
+        probs.append(res["prob_prematuro"])
+
+    prob_consenso = round(sum(probs) / len(probs), 4)
+    semanas_prom = round(
+        sum(modelos[a]["semanas_estimadas"] for a in _ALGORITMOS_CONSENSO) / len(_ALGORITMOS_CONSENSO),
+        1,
+    )
+
+    return {
+        "prob_consenso": prob_consenso,
+        "prematuro": int(prob_consenso >= 0.5),
+        "semanas_estimadas_consenso": semanas_prom,
+        "nivel_riesgo": _nivel_riesgo(prob_consenso),
+        "modelos": modelos,
     }

@@ -90,8 +90,10 @@ def ejecutar() -> None:
         ]
     ).to_csv(DIR_REPORTES / "concordancia_metodos.csv", index=False)
 
-    modelos_dir = BASE / "modelos"
-    modelos_dir.mkdir(exist_ok=True)
+    from app.ml_models.paths import resolve_ml_models_dir
+
+    modelos_dir = resolve_ml_models_dir()
+    modelos_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(arbol, modelos_dir / "s4_arbol_decision.pkl")
     joblib.dump(ordinal, modelos_dir / "s4_logistica_ordinal.pkl")
 

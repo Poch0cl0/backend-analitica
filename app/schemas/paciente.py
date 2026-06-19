@@ -40,6 +40,38 @@ class PacienteResponse(PacienteBase):
     updated_at: datetime
 
 
+class PacienteListResponse(BaseModel):
+    items: list[PacienteResponse]
+    total: int
+    page: int
+    pages: int
+
+
+class PacientePerfilResponse(BaseModel):
+    id: int
+    dni: str
+    nombre: str
+    apellidos: str
+    telefono_principal: Optional[str] = None
+    email: Optional[str] = None
+    edad_madre: Optional[int] = None
+    edad_gestacional_semanas: Optional[int] = None
+    longitud_cervical_mm: Optional[Decimal] = None
+    embarazo_multiple: Optional[bool] = None
+    parto_prematuro_previo: Optional[bool] = None
+    hipertension_gestacional: Optional[bool] = None
+    bmi: Optional[Decimal] = None
+    num_condiciones_cronicas: Optional[int] = None
+    infeccion_activa: Optional[bool] = None
+    prob_consenso: Optional[Decimal] = None
+    nivel_riesgo: Optional[str] = None
+    semanas_estimadas_consenso: Optional[int] = None
+    nivel_urgencia: Optional[str] = None
+    medico_nombre: Optional[str] = None
+    fecha_ultima_prediccion: Optional[datetime] = None
+    fecha_ultimo_triage: Optional[datetime] = None
+
+
 class DatosClinicosBase(BaseModel):
     edad_gestacional_semanas: Optional[int] = Field(None, ge=20, le=45)
     longitud_cervical_mm: Optional[Decimal] = None

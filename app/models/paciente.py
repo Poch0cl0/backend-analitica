@@ -10,6 +10,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.cita import Cita
+    from app.models.contacto import ContactoPaciente
     from app.models.datos_clinicos import DatosClinicos
     from app.models.prediccion import Prediccion
     from app.models.recomendacion import Recomendacion
@@ -44,3 +45,4 @@ class Paciente(Base):
     predicciones: Mapped[List["Prediccion"]] = relationship(back_populates="paciente")
     triages: Mapped[List["Triage"]] = relationship(back_populates="paciente")
     recomendaciones: Mapped[List["Recomendacion"]] = relationship(back_populates="paciente")
+    contactos: Mapped[List["ContactoPaciente"]] = relationship(back_populates="paciente")

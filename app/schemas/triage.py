@@ -51,3 +51,11 @@ class TriagePriorizadoResponse(BaseModel):
     bmi: Optional[Decimal] = None
     num_condiciones_cronicas: Optional[int] = None
     fecha_triage: datetime
+    acciones_urgentes: Optional[list[str]] = None
+
+
+class TriageResumenResponse(BaseModel):
+    rojo: int
+    naranja: int
+    amarillo: int
+    verde: int
