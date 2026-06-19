@@ -18,7 +18,9 @@ from app.schemas.cita import (
     DisponibilidadResponse,
     DisponibilidadSlot,
 )
+from app.schemas.paciente import PacienteUpdate
 from app.services.cita_service import CitaService
+from app.services.paciente_service import PacienteService
 
 router = APIRouter(prefix="/api/citas", tags=["citas"])
 
@@ -51,7 +53,15 @@ async def agendar_cita(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Usuario, Depends(verificar_permiso("citas", "crear"))],
 ):
-    return await CitaService.crear(db, data)
+    cita = await CitaService.crear(db, data)
+    # Al crear la cita se asigna automáticamente el médico al paciente
+    try:
+        await PacienteService.actualizar(
+            db, data.paciente_id, PacienteUpdate(medico_asignado_id=data.medico_id)
+        )
+    except Exception:
+        pass  # No interrumpir si la asignación falla
+    return cita
 
 
 @router.get("/{cita_id}", response_model=CitaResponseEnriquecida)

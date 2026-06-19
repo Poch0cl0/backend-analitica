@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.security import verificar_permiso
+from app.core.security import get_current_user, verificar_permiso
 from app.models.rol import Rol
 from app.models.usuario import Usuario
 from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
@@ -21,6 +21,19 @@ class MedicoResumen(BaseModel):
     id: int
     nombre: str
     apellidos: str
+
+
+@router.get("/me")
+async def obtener_usuario_actual(
+    usuario: Annotated[Usuario, Depends(get_current_user)],
+):
+    return {
+        "id": usuario.id,
+        "nombre": usuario.nombre,
+        "apellidos": usuario.apellidos,
+        "email": usuario.email,
+        "rol": usuario.rol.nombre,
+    }
 
 
 @router.get("/medicos", response_model=List[MedicoResumen])

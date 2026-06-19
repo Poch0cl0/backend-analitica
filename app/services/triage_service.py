@@ -185,18 +185,34 @@ class TriageService:
     async def listar_priorizados(
         db: AsyncSession,
         nivel: str | None = None,
+        algoritmo: str = "consenso",
     ) -> list[TriagePriorizadoResponse]:
+        col_map = {
+            "arbol": "LOWER(urgencia_arbol)",
+            "ordinal": "LOWER(urgencia_ordinal)",
+            "consenso": "LOWER(nivel_urgencia)",
+        }
+        col = col_map.get(algoritmo, "LOWER(nivel_urgencia)")
+
         sql = "SELECT * FROM vista_triage_priorizado"
         params: dict = {}
         if nivel:
-            sql += " WHERE LOWER(nivel_urgencia) = :nivel"
+            sql += f" WHERE {col} = :nivel"
             params["nivel"] = nivel.lower()
         result = await db.execute(text(sql), params)
         rows = result.mappings().all()
         out = []
         for row in rows:
             data = dict(row)
-            data["acciones_urgentes"] = _acciones_por_nivel(data.get("nivel_urgencia", ""))
+            # Nivel efectivo según algoritmo seleccionado
+            if algoritmo == "arbol":
+                nivel_efectivo = data.get("urgencia_arbol") or data.get("nivel_urgencia")
+            elif algoritmo == "ordinal":
+                nivel_efectivo = data.get("urgencia_ordinal") or data.get("nivel_urgencia")
+            else:
+                nivel_efectivo = data.get("nivel_urgencia")
+            data["nivel_urgencia"] = nivel_efectivo
+            data["acciones_urgentes"] = _acciones_por_nivel(nivel_efectivo or "")
             out.append(TriagePriorizadoResponse(**data))
         return out
 

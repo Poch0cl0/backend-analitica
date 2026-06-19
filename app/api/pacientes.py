@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/pacientes", tags=["pacientes"])
 @router.get("/", response_model=PacienteListResponse)
 async def listar_pacientes(
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[Usuario, Depends(verificar_permiso("pacientes", "leer"))],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("pacientes", "leer"))],
     q: Optional[str] = Query(None),
     estado: Optional[str] = Query(None),
     medico_id: Optional[int] = Query(None),
@@ -33,8 +33,13 @@ async def listar_pacientes(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
 ):
+    # El médico solo puede ver sus propios pacientes asignados
+    effective_medico_id = medico_id
+    if usuario.rol.nombre == "medico":
+        effective_medico_id = usuario.id
+
     return await PacienteService.listar(
-        db, q=q, estado=estado, medico_id=medico_id, mes_registro=mes_registro, page=page, limit=limit
+        db, q=q, estado=estado, medico_id=effective_medico_id, mes_registro=mes_registro, page=page, limit=limit
     )
 
 

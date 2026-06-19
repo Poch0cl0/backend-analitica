@@ -82,9 +82,10 @@ async def listar_priorizados(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[Usuario, Depends(verificar_permiso("triage", "leer"))],
     nivel: str | None = Query(None, description="rojo|naranja|amarillo|verde"),
+    algoritmo: str = Query("consenso", description="consenso|arbol|ordinal"),
 ):
     try:
-        return await TriageService.listar_priorizados(db, nivel=nivel)
+        return await TriageService.listar_priorizados(db, nivel=nivel, algoritmo=algoritmo)
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

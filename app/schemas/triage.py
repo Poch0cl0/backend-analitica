@@ -46,6 +46,8 @@ class TriagePriorizadoResponse(BaseModel):
     edad_gestacional_semanas: Optional[int] = None
     nivel_urgencia: str
     score_formula_ponderada: Optional[Decimal] = None
+    urgencia_arbol: Optional[str] = None
+    urgencia_ordinal: Optional[str] = None
     prob_consenso: Optional[Decimal] = None
     semanas_estimadas_consenso: Optional[int] = None
     bmi: Optional[Decimal] = None
