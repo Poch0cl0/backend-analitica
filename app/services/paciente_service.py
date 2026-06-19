@@ -27,8 +27,20 @@ class PacienteService:
     ) -> dict:
         query = select(Paciente).options(selectinload(Paciente.medico_asignado))
 
-        if activo is not None:
-            query = query.where(Paciente.activo == activo)
+        # El filtro de activo/inactivo lo controla `estado` cuando corresponde;
+        # de lo contrario se usa el parámetro `activo`.
+        if estado == "inactivo":
+            query = query.where(Paciente.activo.is_(False))
+        elif estado == "activo":
+            query = query.where(Paciente.activo.is_(True))
+        elif estado == "sin_medico":
+            query = query.where(Paciente.medico_asignado_id.is_(None))
+            if activo is not None:
+                query = query.where(Paciente.activo == activo)
+        else:
+            if activo is not None:
+                query = query.where(Paciente.activo == activo)
+
         if q:
             like = f"%{q}%"
             query = query.where(
@@ -38,12 +50,6 @@ class PacienteService:
                     Paciente.dni.ilike(like),
                 )
             )
-        if estado == "sin_medico":
-            query = query.where(Paciente.medico_asignado_id.is_(None))
-        elif estado == "inactivo":
-            query = query.where(Paciente.activo.is_(False))
-        elif estado == "activo":
-            query = query.where(Paciente.activo.is_(True))
         if medico_id:
             query = query.where(Paciente.medico_asignado_id == medico_id)
         if mes_registro:
@@ -142,4 +148,5 @@ class PacienteService:
         paciente = await PacienteService.obtener(db, paciente_id)
         paciente.activo = False
         await db.flush()
+        await db.refresh(paciente)
         return paciente
