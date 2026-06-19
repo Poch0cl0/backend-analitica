@@ -11,7 +11,6 @@ class CitaCreate(BaseModel):
     medico_id: int
     fecha_hora: datetime
     duracion_minutos: int = Field(default=30, ge=15, le=120)
-    motivo: Optional[str] = None
     notas: Optional[str] = None
 
 
@@ -23,7 +22,6 @@ class CitaUpdate(BaseModel):
     fecha_hora: Optional[datetime] = None
     medico_id: Optional[int] = None
     estado: Optional[str] = Field(None, pattern="^(programada|en_atencion|cumplida|cancelada)$")
-    motivo: Optional[str] = None
     notas: Optional[str] = None
     duracion_minutos: Optional[int] = Field(None, ge=15, le=120)
 
@@ -37,7 +35,6 @@ class CitaResponse(BaseModel):
     fecha_hora: datetime
     duracion_minutos: int
     estado: str
-    motivo: Optional[str] = None
     notas: Optional[str] = None
     created_at: datetime
 

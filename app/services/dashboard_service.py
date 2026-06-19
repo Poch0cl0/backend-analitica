@@ -43,6 +43,14 @@ class DashboardService:
             )
         ).scalar() or 0
 
+        citas_pendientes_activas = (
+            await db.execute(
+                select(func.count()).select_from(Cita).where(
+                    Cita.estado.in_(["programada", "en_atencion"]),
+                )
+            )
+        ).scalar() or 0
+
         inicio_sem = datetime.combine(inicio_semana, datetime.min.time())
         fin_sem = datetime.combine(fin_semana, datetime.max.time())
         citas_semana = (
@@ -70,6 +78,7 @@ class DashboardService:
             "total_pacientes": total_pacientes,
             "citas_hoy": citas_hoy,
             "citas_pendientes_confirmacion": citas_pendientes,
+            "citas_pendientes_activas": citas_pendientes_activas,
             "citas_semana": citas_semana,
             "pacientes_sin_cita": pacientes_sin_cita,
         }

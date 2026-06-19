@@ -24,7 +24,6 @@ class Cita(Base):
     estado: Mapped[str] = mapped_column(
         String(20), default="programada", nullable=False
     )  # programada, en_atencion, cumplida, cancelada
-    motivo: Mapped[Optional[str]] = mapped_column(String(255))
     notas: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

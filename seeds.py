@@ -372,29 +372,29 @@ async def seed_citas(db: AsyncSession, paciente_ids: list[int], usuario_ids: lis
         {
             "paciente_id": paciente_ids[0], "medico_id": usuario_ids[1],
             "fecha_hora":  hoy + timedelta(days=1),
-            "estado": "programada", "motivo": "Control prenatal 32 semanas",
+            "estado": "programada",
         },
         {
             "paciente_id": paciente_ids[1], "medico_id": usuario_ids[1],
             "fecha_hora":  hoy + timedelta(days=1, hours=1),
-            "estado": "programada", "motivo": "Control urgente — LC corta + embarazo múltiple",
+            "estado": "programada",
         },
         {
             "paciente_id": paciente_ids[2], "medico_id": usuario_ids[2],
             "fecha_hora":  hoy,
-            "estado": "cumplida",   "motivo": "Control prenatal rutina",
+            "estado": "cumplida",
         },
         {
             "paciente_id": paciente_ids[3], "medico_id": usuario_ids[2],
             "fecha_hora":  hoy + timedelta(days=2),
-            "estado": "programada", "motivo": "Alta complejidad — múltiple + HTA + infección",
+            "estado": "programada",
         },
     ]
     for c in citas:
         await db.execute(
             text("""
-                INSERT INTO citas (paciente_id, medico_id, fecha_hora, estado, motivo)
-                VALUES (:paciente_id, :medico_id, :fecha_hora, :estado, :motivo)
+                INSERT INTO citas (paciente_id, medico_id, fecha_hora, estado)
+                VALUES (:paciente_id, :medico_id, :fecha_hora, :estado)
             """),
             c,
         )

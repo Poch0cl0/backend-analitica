@@ -11,7 +11,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, verificar_permiso
 from app.models.rol import Rol
 from app.models.usuario import Usuario
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
+from app.schemas.usuario import RolResponse, UsuarioCreate, UsuarioResponse, UsuarioUpdate
 from app.services.usuario_service import UsuarioService
 
 router = APIRouter(prefix="/api/usuarios", tags=["usuarios"])
@@ -51,6 +51,15 @@ async def listar_medicos(
         MedicoResumen(id=u.id, nombre=u.nombre, apellidos=u.apellidos)
         for u in result.scalars().all()
     ]
+
+
+@router.get("/roles", response_model=List[RolResponse])
+async def listar_roles(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("usuarios", "leer"))],
+):
+    result = await db.execute(select(Rol).order_by(Rol.id))
+    return list(result.scalars().all())
 
 
 @router.get("/", response_model=List[UsuarioResponse])

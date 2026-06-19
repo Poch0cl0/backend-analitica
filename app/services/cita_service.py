@@ -45,7 +45,6 @@ class CitaService:
             "fecha_hora": c.fecha_hora,
             "duracion_minutos": c.duracion_minutos,
             "estado": c.estado,
-            "motivo": c.motivo,
             "notas": c.notas,
             "created_at": c.created_at,
             "paciente_nombre": f"{c.paciente.nombre} {c.paciente.apellidos}" if c.paciente else None,

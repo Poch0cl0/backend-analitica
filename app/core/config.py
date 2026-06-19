@@ -35,7 +35,13 @@ class Settings(BaseSettings):
 
     ML_PREDICTION_PATH: str = "app/ml_models/prediccion"
     ML_TRIAGE_PATH: str = "app/ml_models/triage"
-    ML_MODELS_PATH: str = "app/ml_models/models"
+    ML_MODELS_PATH: str = "app/ml_models/modelos"
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "noreply@obstetricare.com"
+    SMTP_USE_TLS: bool = True
 
     @field_validator("ALLOWED_ORIGINS", mode="before")
     @classmethod
