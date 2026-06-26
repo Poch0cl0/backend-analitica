@@ -11,6 +11,7 @@ from app.core.security import verificar_permiso
 from app.ml_models.prediccion.predecir_s2 import AlgoritmoS2
 from app.models.usuario import Usuario
 from app.schemas.prediccion import (
+    FeedbackEstadisticasResponse,
     PrediccionConsensoResponse,
     PrediccionFeedbackCreate,
     PrediccionFeedbackResponse,
@@ -133,31 +134,18 @@ async def listar_algoritmos(
 ):
     """Retorna los algoritmos disponibles y cuáles están instalados."""
     from app.ml_models.paths import resolve_ml_models_dir
+    from app.ml_models.prediccion.predecir_s2 import _ARCHIVOS, _NOMBRES_DISPLAY
 
     dir_modelos = resolve_ml_models_dir()
-    archivos = {
-        "catboost":      ("prematuro_catboost.cbm",     "semanas_catboost.cbm"),
-        "mejor":         ("prematuro_mejor_modelo.pkl",  "semanas_mejor_modelo.pkl"),
-        "logistic":      ("prematuro_logistic.pkl",      "semanas_lineal.pkl"),
-        "random_forest": ("prematuro_random_forest.pkl", "semanas_random_forest.pkl"),
-        "svm":           ("prematuro_svm.pkl",           "semanas_svm.pkl"),
-    }
-    nombres = {
-        "catboost":      "CatBoost (formato nativo .cbm)",
-        "mejor":         "CatBoost - Mejor modelo (.pkl)",
-        "logistic":      "Regresión Logística",
-        "random_forest": "Random Forest",
-        "svm":           "SVM (LinearSVC)",
-    }
     return [
         {
             "algoritmo":     alg,
-            "nombre":        nombres[alg],
+            "nombre":        _NOMBRES_DISPLAY[alg],
             "disponible":    (dir_modelos / pre).exists() and (dir_modelos / sem).exists(),
             "archivo_prematuro": pre,
             "archivo_semanas":   sem,
         }
-        for alg, (pre, sem) in archivos.items()
+        for alg, (pre, sem) in _ARCHIVOS.items()
     ]
 
 
@@ -220,3 +208,15 @@ async def listar_feedback(
     _: Annotated[Usuario, Depends(verificar_permiso("prediccion", "ejecutar"))],
 ):
     return await PrediccionService.listar_feedback(db, prediccion_id)
+
+
+@router.get(
+    "/feedback/estadisticas",
+    response_model=FeedbackEstadisticasResponse,
+    summary="Estadísticas globales de feedback para gráficos",
+)
+async def estadisticas_feedback(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("prediccion", "ejecutar"))],
+):
+    return await PrediccionService.obtener_estadisticas(db)

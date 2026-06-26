@@ -83,3 +83,28 @@ class PrediccionFeedbackResponse(BaseModel):
     voto_correcta: bool
     comentario: Optional[str] = None
     created_at: datetime
+
+
+class FeedbackPorModelo(BaseModel):
+    modelo: Optional[str] = None
+    total: int
+    correctos: int
+    incorrectos: int
+    precision: float
+
+
+class FeedbackTemporal(BaseModel):
+    fecha: str
+    total: int
+    correctos: int
+    incorrectos: int
+    precision: float
+
+
+class FeedbackEstadisticasResponse(BaseModel):
+    total_votos: int
+    total_correctos: int
+    total_incorrectos: int
+    precision_global: float
+    por_modelo: list[FeedbackPorModelo]
+    temporal: list[FeedbackTemporal]

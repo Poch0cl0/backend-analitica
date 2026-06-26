@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -322,3 +322,82 @@ class PrediccionService:
             .order_by(PrediccionFeedback.created_at.desc())
         )
         return list(result.scalars().all())
+
+    @staticmethod
+    async def obtener_estadisticas(db: AsyncSession) -> dict:
+        # Resumen global
+        row = (await db.execute(
+            text("""
+                SELECT
+                    COUNT(*)::int AS total_votos,
+                    COALESCE(SUM(CASE WHEN voto_correcta THEN 1 ELSE 0 END), 0)::int AS total_correctos,
+                    COALESCE(SUM(CASE WHEN NOT voto_correcta THEN 1 ELSE 0 END), 0)::int AS total_incorrectos
+                FROM prediccion_feedback
+            """)
+        )).one()
+
+        total_votos = row.total_votos
+        total_correctos = row.total_correctos
+        total_incorrectos = row.total_incorrectos
+        precision_global = round(total_correctos / total_votos, 4) if total_votos > 0 else 0.0
+
+        # Por modelo
+        rows_modelo = (await db.execute(
+            text("""
+                SELECT
+                    modelo,
+                    COUNT(*)::int AS total,
+                    COALESCE(SUM(CASE WHEN voto_correcta THEN 1 ELSE 0 END), 0)::int AS correctos,
+                    COALESCE(SUM(CASE WHEN NOT voto_correcta THEN 1 ELSE 0 END), 0)::int AS incorrectos
+                FROM prediccion_feedback
+                GROUP BY modelo
+                ORDER BY modelo NULLS FIRST
+            """)
+        )).all()
+
+        por_modelo = []
+        for r in rows_modelo:
+            tot = r.total
+            corr = r.correctos
+            por_modelo.append({
+                "modelo": r.modelo,
+                "total": tot,
+                "correctos": corr,
+                "incorrectos": r.incorrectos,
+                "precision": round(corr / tot, 4) if tot > 0 else 0.0,
+            })
+
+        # Temporal por semana
+        rows_temp = (await db.execute(
+            text("""
+                SELECT
+                    TO_CHAR(DATE_TRUNC('week', created_at), 'YYYY-MM-DD') AS fecha,
+                    COUNT(*)::int AS total,
+                    COALESCE(SUM(CASE WHEN voto_correcta THEN 1 ELSE 0 END), 0)::int AS correctos,
+                    COALESCE(SUM(CASE WHEN NOT voto_correcta THEN 1 ELSE 0 END), 0)::int AS incorrectos
+                FROM prediccion_feedback
+                GROUP BY DATE_TRUNC('week', created_at)
+                ORDER BY DATE_TRUNC('week', created_at)
+            """)
+        )).all()
+
+        temporal = []
+        for r in rows_temp:
+            tot = r.total
+            corr = r.correctos
+            temporal.append({
+                "fecha": r.fecha,
+                "total": tot,
+                "correctos": corr,
+                "incorrectos": r.incorrectos,
+                "precision": round(corr / tot, 4) if tot > 0 else 0.0,
+            })
+
+        return {
+            "total_votos": total_votos,
+            "total_correctos": total_correctos,
+            "total_incorrectos": total_incorrectos,
+            "precision_global": precision_global,
+            "por_modelo": por_modelo,
+            "temporal": temporal,
+        }

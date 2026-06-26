@@ -2,11 +2,11 @@
 Predicción S-2 — riesgo de parto prematuro y semanas estimadas.
 
 Algoritmos disponibles:
-  - "catboost"      → prematuro_catboost.cbm      + semanas_catboost.cbm
-  - "mejor"         → prematuro_mejor_modelo.pkl  + semanas_mejor_modelo.pkl   (CatBoost, default)
-  - "logistic"      → prematuro_logistic.pkl       + semanas_lineal.pkl
-  - "random_forest" → prematuro_random_forest.pkl  + semanas_random_forest.pkl
-  - "svm"           → prematuro_svm.pkl            + semanas_svm.pkl
+  - "catboost"      → modelo_catboost.cbm            + semanas_catboost.cbm
+  - "mejor"         → modelo_catboost.cbm            + semanas_catboost.cbm       (default)
+  - "logistic"      → modelo_regresion_logistica.pkl + semanas_lineal.pkl
+  - "random_forest" → modelo_random_forest.pkl       + semanas_random_forest.pkl
+  - "svm"           → prematuro_svm.pkl              + semanas_svm.pkl
 """
 
 import warnings
@@ -28,12 +28,20 @@ CAMPOS_S2 = [
     "infeccion_activa", "priorlive", "bmi", "cl_sim_mm", "combgest",
 ]
 
+# Mapeo de nombres de campos viejos (CAMPOS_S2) → nuevos nombres de los modelos
+_FEATURE_MAP = {
+    "num_condiciones_cronicas": "N\u00b0 Cr\u00f3nicas",
+    "infeccion_activa": "N\u00b0 Infecciones",
+    "cl_sim_mm": "longitud_cervical",
+}
+_FEATURE_MAP_REV = {v: k for k, v in _FEATURE_MAP.items()}
+
 _ARCHIVOS = {
-    "catboost":      ("prematuro_catboost.cbm",      "semanas_catboost.cbm"),
-    "mejor":         ("prematuro_mejor_modelo.pkl",   "semanas_mejor_modelo.pkl"),
-    "logistic":      ("prematuro_logistic.pkl",       "semanas_lineal.pkl"),
-    "random_forest": ("prematuro_random_forest.pkl",  "semanas_random_forest.pkl"),
-    "svm":           ("prematuro_svm.pkl",            "semanas_svm.pkl"),
+    "catboost":      ("modelo_catboost.cbm",             "semanas_catboost.cbm"),
+    "mejor":         ("modelo_catboost.cbm",             "semanas_catboost.cbm"),
+    "logistic":      ("modelo_regresion_logistica.pkl",  "semanas_lineal.pkl"),
+    "random_forest": ("modelo_random_forest.pkl",        "semanas_random_forest.pkl"),
+    "svm":           ("prematuro_svm.pkl",               "semanas_svm.pkl"),
 }
 
 _NOMBRES_DISPLAY = {
@@ -69,28 +77,59 @@ def _cargar(nombre: str):
     return pkg, "direct_sklearn"
 
 
-def _preparar_df(datos: dict, encoders: dict | None = None) -> pd.DataFrame:
+def _preparar_df(
+    datos: dict,
+    encoders: dict | None = None,
+    expected_cols: list[str] | None = None,
+) -> pd.DataFrame:
     """Convierte datos a DataFrame numérico. rf_ppterm Y/N → 1/0."""
-    fila = {k: datos[k] for k in CAMPOS_S2}
+    if expected_cols is None:
+        expected_cols = CAMPOS_S2
+    fila = {}
+    for col in expected_cols:
+        if col in datos:
+            fila[col] = datos[col]
+        else:
+            mapped = _FEATURE_MAP_REV.get(col)
+            if mapped and mapped in datos:
+                fila[col] = datos[mapped]
+            else:
+                fila[col] = 0
     if isinstance(fila.get("rf_ppterm"), str):
         if encoders and "rf_ppterm" in encoders:
             fila["rf_ppterm"] = encoders["rf_ppterm"].transform([fila["rf_ppterm"]])[0]
         else:
             fila["rf_ppterm"] = 1 if str(fila["rf_ppterm"]).upper() == "Y" else 0
-    return pd.DataFrame([fila])[CAMPOS_S2]
+    return pd.DataFrame([fila])
 
 
 def _sigmoid(x: float) -> float:
     return float(1 / (1 + np.exp(-x)))
 
 
+def _extraer_features_modelo(modelo, formato: str) -> list[str] | None:
+    """Extrae la lista de features esperadas por el modelo (si está disponible)."""
+    if formato == "dict_sklearn":
+        return modelo.get("features")
+    if formato == "catboost_native" and hasattr(modelo, "feature_names_"):
+        return list(modelo.feature_names_)
+    return None
+
+
 def _prob_prematuro(modelo, formato: str, datos: dict) -> float:
     if formato == "dict_sklearn":
+        model_obj = modelo.get("model", modelo.get("modelo"))
         encoders = modelo.get("estimator", {}) or modelo.get("encoders", {})
-        df = _preparar_df(datos, encoders if isinstance(encoders, dict) else None)
-        return float(modelo["modelo"].predict_proba(df)[0, 1])
+        features = modelo.get("features")
+        df = _preparar_df(
+            datos,
+            encoders if isinstance(encoders, dict) else None,
+            expected_cols=features,
+        )
+        return float(model_obj.predict_proba(df)[0, 1])
 
-    df = _preparar_df(datos)
+    features = _extraer_features_modelo(modelo, formato)
+    df = _preparar_df(datos, expected_cols=features)
 
     if hasattr(modelo, "predict_proba"):
         return float(modelo.predict_proba(df)[0, 1])
@@ -102,11 +141,18 @@ def _prob_prematuro(modelo, formato: str, datos: dict) -> float:
 
 def _pred_semanas(modelo, formato: str, datos: dict) -> float:
     if formato == "dict_sklearn":
+        model_obj = modelo.get("model", modelo.get("modelo"))
         encoders = modelo.get("estimator", {}) or modelo.get("encoders", {})
-        df = _preparar_df(datos, encoders if isinstance(encoders, dict) else None)
-        return float(modelo["modelo"].predict(df)[0])
+        features = modelo.get("features")
+        df = _preparar_df(
+            datos,
+            encoders if isinstance(encoders, dict) else None,
+            expected_cols=features,
+        )
+        return float(model_obj.predict(df)[0])
 
-    df = _preparar_df(datos)
+    features = _extraer_features_modelo(modelo, formato)
+    df = _preparar_df(datos, expected_cols=features)
     return float(modelo.predict(df)[0])
 
 
