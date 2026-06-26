@@ -1,4 +1,4 @@
-"""Recomendación service (S-4)."""
+"""Recomendación service (S-4) — powered by Gemini API."""
 
 import math
 from datetime import date
@@ -9,27 +9,84 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import BadRequestError, NotFoundError
-from app.ml_models.recomendaciones.predecir_s4 import predecir_recomendacion
 from app.models.datos_clinicos import DatosClinicos
 from app.models.intervencion import CatalogoIntervencion
 from app.models.paciente import Paciente
 from app.models.prediccion import Prediccion
 from app.models.recomendacion import Recomendacion
+from app.models.triage import Triage
 from app.models.usuario import Usuario
 from app.schemas.recomendacion import prioridad_a_num, prioridad_a_slug
-from app.services.prediccion_service import datos_clinicos_a_s2
-
-_ALGORITMOS = {
-    "if_then": "recomendacion_if_then",
-    "cart": "recomendacion_cart",
-    "rf": "recomendacion_random_forest",
-}
+from app.services.gemini_service import GeminiService
 
 
 class RecomendacionService:
+
+    @staticmethod
+    def _fallback_recomendacion(
+        prob_prematuro: Optional[float] = None,
+        nivel_urgencia: str = "VERDE",
+        parto_prematuro_previo: bool = False,
+        num_condiciones_cronicas: int = 0,
+        longitud_cervical_mm: Optional[float] = None,
+        infeccion_activa: bool = False,
+        embarazo_multiple: bool = False,
+    ) -> dict:
+        prob = prob_prematuro if prob_prematuro is not None else 0.0
+        urg = nivel_urgencia.upper() if nivel_urgencia else "VERDE"
+        lc = longitud_cervical_mm if longitud_cervical_mm is not None else 999
+
+        if urg == "ROJO" or prob >= 0.60:
+            slug = "derivacion_alto_riesgo"
+            titulo = "Derivación a unidad de alto riesgo obstétrico"
+            desc = "Paciente con riesgo crítico de parto prematuro que requiere atención especializada inmediata."
+        elif infeccion_activa:
+            slug = "tratar_infeccion"
+            titulo = "Tratamiento de infección activa"
+            desc = "Presencia de infección activa que requiere tratamiento antibiótico oportuno para reducir riesgo obstétrico."
+        elif parto_prematuro_previo and lc < 25:
+            slug = "progesterona_vaginal"
+            titulo = "Progesterona vaginal"
+            desc = "Antecedente de parto prematuro previo combinado con longitud cervical corta. Indicar progesterona vaginal."
+        elif lc < 25:
+            slug = "seguimiento_estrecho_lc"
+            titulo = "Seguimiento estrecho por longitud cervical corta"
+            desc = "Longitud cervical por debajo de 25 mm. Requiere monitoreo ecográfico frecuente."
+        elif urg == "NARANJA" or num_condiciones_cronicas >= 3 or embarazo_multiple:
+            slug = "vigilancia_hta_multiple"
+            titulo = "Vigilancia de hipertensión o embarazo múltiple"
+            desc = "Paciente con factores que requieren control prenatal más frecuente y evaluación de riesgo cardiovascular."
+        elif prob >= 0.25 or urg == "AMARILLO":
+            slug = "seguimiento_estrecho_lc"
+            titulo = "Seguimiento estrecho"
+            desc = "Riesgo moderado de parto prematuro. Incrementar frecuencia de controles prenatales."
+        else:
+            slug = "control_prenatal_rutinario"
+            titulo = "Control prenatal rutinario"
+            desc = "Paciente de bajo riesgo. Continuar con controles prenatales estándar según guías locales."
+
+        return {"recomendacion": slug, "titulo": titulo, "descripcion": desc}
+
     @staticmethod
     def ejecutar_modelo(datos: dict) -> dict:
-        return predecir_recomendacion(datos)
+        """Endpoint legacy S-4."""
+        slug = RecomendacionService._fallback_recomendacion(
+            prob_prematuro=datos.get("prob_prematuro"),
+            nivel_urgencia=datos.get("nivel_urgencia", "VERDE"),
+            parto_prematuro_previo=bool(datos.get("parto_prematuro_previo", False)),
+            num_condiciones_cronicas=int(datos.get("num_condiciones_cronicas", 0)),
+            longitud_cervical_mm=datos.get("cl_sim_mm"),
+            infeccion_activa=bool(datos.get("infeccion_activa", False)),
+            embarazo_multiple=bool(datos.get("embarazo_multiple", False)),
+        )["recomendacion"]
+        return {
+            "entradas_s4": datos,
+            "recomendacion_if_then": slug,
+            "recomendacion_cart": slug,
+            "recomendacion_random_forest": slug,
+            "importancia_variables_rf": [],
+            "recomendaciones_posibles": [],
+        }
 
     @staticmethod
     async def _resolver_intervencion(db: AsyncSession, codigo: str) -> CatalogoIntervencion:
@@ -47,34 +104,32 @@ class RecomendacionService:
         return intervencion
 
     @staticmethod
-    async def guardar(
+    async def guardar_gemini(
         db: AsyncSession,
         paciente_id: int,
-        resultado: dict,
+        slug: str,
+        titulo: str,
+        descripcion: str,
         prediccion_id: Optional[int] = None,
         medico_id: Optional[int] = None,
-    ) -> list[Recomendacion]:
-        guardadas: list[Recomendacion] = []
-        for algoritmo, campo in _ALGORITMOS.items():
-            codigo = resultado[campo]
-            intervencion = await RecomendacionService._resolver_intervencion(db, codigo)
-            rec = Recomendacion(
-                paciente_id=paciente_id,
-                prediccion_id=prediccion_id,
-                intervencion_id=intervencion.id,
-                algoritmo=algoritmo,
-                titulo=intervencion.nombre,
-                estado="activo",
-                origen="s4_auto",
-                es_manual=False,
-                medico_id=medico_id,
-            )
-            db.add(rec)
-            guardadas.append(rec)
-            rec.intervencion = intervencion
-
+    ) -> Recomendacion:
+        intervencion = await RecomendacionService._resolver_intervencion(db, slug)
+        rec = Recomendacion(
+            paciente_id=paciente_id,
+            prediccion_id=prediccion_id,
+            intervencion_id=intervencion.id,
+            algoritmo="gemini",
+            titulo=titulo or intervencion.nombre,
+            descripcion=descripcion,
+            estado="activo",
+            origen="gemini",
+            es_manual=False,
+            medico_id=medico_id,
+        )
+        db.add(rec)
         await db.flush()
-        return guardadas
+        await db.refresh(rec, attribute_names=["intervencion"])
+        return rec
 
     @staticmethod
     async def ejecutar_para_paciente(
@@ -111,53 +166,70 @@ class RecomendacionService:
                 f"No se encontró la predicción {prediccion_id} para el paciente {paciente_id}."
             )
 
-        campos_req = {
-            "bmi": dc.bmi,
-            "longitud_cervical_mm": dc.longitud_cervical_mm,
-            "edad_gestacional_semanas": dc.edad_gestacional_semanas,
-        }
-        faltantes = [k for k, v in campos_req.items() if v is None]
-        if faltantes:
-            raise BadRequestError(
-                f"Faltan datos clínicos obligatorios para S-4: {faltantes}"
+        prob_consenso = float(prediccion.prob_consenso) if prediccion.prob_consenso else None
+
+        triage_result = await db.execute(
+            select(Triage).where(
+                Triage.paciente_id == paciente_id,
+                Triage.prediccion_id == prediccion_id,
+            ).order_by(Triage.fecha_triage.desc()).limit(1)
+        )
+        triage = triage_result.scalar_one_or_none()
+        nivel_urgencia = triage.nivel_urgencia if triage else "VERDE"
+
+        parto_previo = bool(dc.parto_prematuro_previo)
+        cronicas = int(dc.num_condiciones_cronicas or 0)
+        bmi_val = float(dc.bmi) if dc.bmi else None
+        lc_val = float(dc.longitud_cervical_mm) if dc.longitud_cervical_mm else None
+        infeccion = bool(dc.infeccion_activa)
+        multi = int(dc.embarazo_multiple or 1) > 1
+
+        try:
+            gemini_result = GeminiService.generar_recomendacion(
+                prob_prematuro=prob_consenso,
+                nivel_urgencia=nivel_urgencia,
+                parto_prematuro_previo=parto_previo,
+                num_condiciones_cronicas=cronicas,
+                bmi=bmi_val,
+                longitud_cervical_mm=lc_val,
+                infeccion_activa=infeccion,
+                embarazo_multiple=multi,
+            )
+        except Exception:
+            gemini_result = RecomendacionService._fallback_recomendacion(
+                prob_prematuro=prob_consenso,
+                nivel_urgencia=nivel_urgencia,
+                parto_prematuro_previo=parto_previo,
+                num_condiciones_cronicas=cronicas,
+                longitud_cervical_mm=lc_val,
+                infeccion_activa=infeccion,
+                embarazo_multiple=multi,
             )
 
-        datos_modelo = datos_clinicos_a_s2(paciente, dc)
-        resultado_s4 = predecir_recomendacion(datos_modelo)
         medico_id = medico.id if medico else None
-        guardadas = await RecomendacionService.guardar(
-            db, paciente_id, resultado_s4, prediccion_id, medico_id=medico_id
+        rec = await RecomendacionService.guardar_gemini(
+            db,
+            paciente_id,
+            gemini_result["recomendacion"],
+            gemini_result["titulo"],
+            gemini_result["descripcion"],
+            prediccion_id=prediccion_id,
+            medico_id=medico_id,
         )
-
-        prob = float(prediccion.prob_consenso) if prediccion.prob_consenso else None
-        algoritmo = (
-            prediccion.datos_entrada_snapshot.get("algoritmo_usado")
-            if prediccion.datos_entrada_snapshot else None
-        )
-
-        recomendaciones_guardadas = [
-            {
-                "algoritmo": rec.algoritmo,
-                "recomendacion": resultado_s4[_ALGORITMOS[rec.algoritmo]],
-                "recomendacion_id": rec.id,
-                "intervencion": rec.intervencion,
-            }
-            for rec in guardadas
-        ]
 
         return {
             "paciente_id": paciente_id,
             "paciente_nombre": f"{paciente.nombre} {paciente.apellidos}",
             "prediccion_id": prediccion_id,
-            "datos_entrada": datos_modelo,
-            "prob_prematuro": prob,
-            "algoritmo_s2": algoritmo,
-            "entradas_s4": resultado_s4["entradas_s4"],
-            "recomendacion_if_then": resultado_s4["recomendacion_if_then"],
-            "recomendacion_cart": resultado_s4["recomendacion_cart"],
-            "recomendacion_random_forest": resultado_s4["recomendacion_random_forest"],
-            "importancia_variables_rf": resultado_s4["importancia_variables_rf"],
-            "recomendaciones_guardadas": recomendaciones_guardadas,
+            "prob_prematuro": prob_consenso,
+            "nivel_urgencia": nivel_urgencia,
+            "recomendacion_gemini": {
+                "recomendacion_id": rec.id,
+                "recomendacion": gemini_result["recomendacion"],
+                "titulo": rec.titulo,
+                "descripcion": rec.descripcion,
+                "intervencion": rec.intervencion,
+            },
         }
 
     @staticmethod

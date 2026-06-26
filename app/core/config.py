@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     ML_PREDICTION_PATH: str = "app/ml_models/prediccion"
     ML_TRIAGE_PATH: str = "app/ml_models/triage"
     ML_MODELS_PATH: str = "app/ml_models/modelos"
+    GEMINI_APIKEY: str = ""
+
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USER: str = ""

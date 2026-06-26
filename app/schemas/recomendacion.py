@@ -79,10 +79,11 @@ class RecomendacionUpdate(BaseModel):
     descripcion: Optional[str] = None
 
 
-class RecomendacionAlgoritmoResult(BaseModel):
-    algoritmo: str
-    recomendacion: RecomendacionSlug
+class RecomendacionGeminiResult(BaseModel):
     recomendacion_id: int
+    recomendacion: RecomendacionSlug
+    titulo: str
+    descripcion: str
     intervencion: IntervencionResumen
 
 
@@ -90,15 +91,18 @@ class RecomendacionEjecutadaResponse(BaseModel):
     paciente_id: int
     paciente_nombre: str
     prediccion_id: int
-    datos_entrada: dict[str, Any]
     prob_prematuro: Optional[float] = None
+    nivel_urgencia: str = "VERDE"
+    recomendacion_gemini: RecomendacionGeminiResult
+    # Campos legacy — se mantienen como opcionales para compatibilidad
+    datos_entrada: Optional[dict[str, Any]] = None
     algoritmo_s2: Optional[str] = None
-    entradas_s4: EntradasS4Response
-    recomendacion_if_then: RecomendacionSlug
-    recomendacion_cart: RecomendacionSlug
-    recomendacion_random_forest: RecomendacionSlug
-    importancia_variables_rf: list[ImportanciaVariableRF]
-    recomendaciones_guardadas: list[RecomendacionAlgoritmoResult]
+    entradas_s4: Optional[EntradasS4Response] = None
+    recomendacion_if_then: Optional[RecomendacionSlug] = None
+    recomendacion_cart: Optional[RecomendacionSlug] = None
+    recomendacion_random_forest: Optional[RecomendacionSlug] = None
+    importancia_variables_rf: Optional[list[ImportanciaVariableRF]] = None
+    recomendaciones_guardadas: Optional[list[Any]] = None
 
 
 def prioridad_a_num(slug: str) -> int:
