@@ -65,3 +65,21 @@ class PrediccionResponse(BaseModel):
     semanas_estimadas_consenso: Optional[int] = None
     nivel_riesgo: Optional[str] = None
     fecha_prediccion: datetime
+
+
+class PrediccionFeedbackCreate(BaseModel):
+    voto_correcta: bool
+    comentario: Optional[str] = None
+    modelo: Optional[str] = None
+
+
+class PrediccionFeedbackResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    prediccion_id: int
+    medico_id: int
+    modelo: Optional[str] = None
+    voto_correcta: bool
+    comentario: Optional[str] = None
+    created_at: datetime

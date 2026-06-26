@@ -9,6 +9,7 @@ from app.models.paciente import Paciente
 from app.models.parametro import ParametroSistema
 from app.models.permiso import Permiso
 from app.models.prediccion import Prediccion
+from app.models.prediccion_feedback import PrediccionFeedback
 from app.models.recomendacion import Recomendacion
 from app.models.rol import Rol
 from app.models.triage import Triage
@@ -24,6 +25,7 @@ __all__ = [
     "ParametroSistema",
     "Permiso",
     "Prediccion",
+    "PrediccionFeedback",
     "Recomendacion",
     "Rol",
     "Triage",

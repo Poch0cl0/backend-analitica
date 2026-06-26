@@ -12,6 +12,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.paciente import Paciente
+    from app.models.prediccion_feedback import PrediccionFeedback
     from app.models.triage import Triage
     from app.models.usuario import Usuario
 
@@ -43,3 +44,4 @@ class Prediccion(Base):
     paciente: Mapped["Paciente"] = relationship(back_populates="predicciones")
     medico: Mapped[Optional["Usuario"]] = relationship(back_populates="predicciones")
     triages: Mapped[list["Triage"]] = relationship(back_populates="prediccion")
+    feedbacks: Mapped[list["PrediccionFeedback"]] = relationship(back_populates="prediccion")

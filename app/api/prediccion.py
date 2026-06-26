@@ -12,6 +12,8 @@ from app.ml_models.prediccion.predecir_s2 import AlgoritmoS2
 from app.models.usuario import Usuario
 from app.schemas.prediccion import (
     PrediccionConsensoResponse,
+    PrediccionFeedbackCreate,
+    PrediccionFeedbackResponse,
     PrediccionPorPacienteResponse,
     PrediccionResponse,
     PrediccionUltimaResponse,
@@ -170,3 +172,51 @@ async def historial_predicciones(
     _: Annotated[Usuario, Depends(verificar_permiso("prediccion", "ejecutar"))],
 ):
     return await PrediccionService.listar_por_paciente(db, paciente_id)
+
+
+@router.get(
+    "/{prediccion_id}/feedback",
+    response_model=PrediccionFeedbackResponse,
+    summary="Obtener feedback de un médico sobre una predicción",
+)
+async def obtener_feedback(
+    prediccion_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("prediccion", "ejecutar"))],
+    modelo: str | None = Query(default=None, description="Filtrar por modelo"),
+):
+    feedback = await PrediccionService.obtener_feedback(db, prediccion_id, modelo=modelo)
+    if feedback is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback no encontrado")
+    return feedback
+
+
+@router.post(
+    "/{prediccion_id}/feedback",
+    response_model=PrediccionFeedbackResponse,
+    summary="Guardar o actualizar feedback de una predicción",
+    status_code=status.HTTP_201_CREATED,
+)
+async def guardar_feedback(
+    prediccion_id: int,
+    data: PrediccionFeedbackCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("prediccion", "ejecutar"))],
+):
+    feedback = await PrediccionService.guardar_feedback(
+        db, prediccion_id, usuario.id, data.model_dump()
+    )
+    return feedback
+
+
+@router.get(
+    "/{prediccion_id}/feedback/todos",
+    response_model=List[PrediccionFeedbackResponse],
+    summary="Listar todo el feedback de una predicción",
+)
+async def listar_feedback(
+    prediccion_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _: Annotated[Usuario, Depends(verificar_permiso("prediccion", "ejecutar"))],
+):
+    return await PrediccionService.listar_feedback(db, prediccion_id)

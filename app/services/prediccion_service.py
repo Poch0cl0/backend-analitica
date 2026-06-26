@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -13,6 +13,7 @@ from app.ml_models.prediccion.predecir_s2 import AlgoritmoS2, predecir_s2, prede
 from app.models.datos_clinicos import DatosClinicos
 from app.models.paciente import Paciente
 from app.models.prediccion import Prediccion
+from app.models.prediccion_feedback import PrediccionFeedback
 from app.models.triage import Triage
 from app.models.usuario import Usuario
 
@@ -259,5 +260,65 @@ class PrediccionService:
             select(Prediccion)
             .where(Prediccion.paciente_id == paciente_id)
             .order_by(Prediccion.fecha_prediccion.desc())
+        )
+        return list(result.scalars().all())
+
+    # ── Feedback ────────────────────────────────────────────────
+
+    @staticmethod
+    async def guardar_feedback(
+        db: AsyncSession,
+        prediccion_id: int,
+        medico_id: int,
+        data: dict,
+    ) -> PrediccionFeedback:
+        modelo = data.get("modelo")
+        result = await db.execute(
+            select(PrediccionFeedback).where(
+                and_(
+                    PrediccionFeedback.prediccion_id == prediccion_id,
+                    PrediccionFeedback.medico_id == medico_id,
+                    PrediccionFeedback.modelo == modelo,
+                )
+            )
+        )
+        feedback = result.scalar_one_or_none()
+        if feedback is None:
+            feedback = PrediccionFeedback(
+                prediccion_id=prediccion_id,
+                medico_id=medico_id,
+                modelo=modelo,
+            )
+            db.add(feedback)
+        feedback.voto_correcta = data["voto_correcta"]
+        feedback.comentario = data.get("comentario")
+        await db.flush()
+        await db.refresh(feedback)
+        return feedback
+
+    @staticmethod
+    async def obtener_feedback(
+        db: AsyncSession,
+        prediccion_id: int,
+        modelo: str | None = None,
+    ) -> PrediccionFeedback | None:
+        stmt = select(PrediccionFeedback).where(
+            PrediccionFeedback.prediccion_id == prediccion_id
+        )
+        if modelo is not None:
+            stmt = stmt.where(PrediccionFeedback.modelo == modelo)
+        stmt = stmt.order_by(PrediccionFeedback.created_at.desc()).limit(1)
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    @staticmethod
+    async def listar_feedback(
+        db: AsyncSession,
+        prediccion_id: int,
+    ) -> list[PrediccionFeedback]:
+        result = await db.execute(
+            select(PrediccionFeedback)
+            .where(PrediccionFeedback.prediccion_id == prediccion_id)
+            .order_by(PrediccionFeedback.created_at.desc())
         )
         return list(result.scalars().all())

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.cita import Cita
     from app.models.paciente import Paciente
     from app.models.prediccion import Prediccion
+    from app.models.prediccion_feedback import PrediccionFeedback
     from app.models.rol import Rol
 
 
@@ -35,4 +36,5 @@ class Usuario(Base):
     pacientes_asignados: Mapped[List["Paciente"]] = relationship(back_populates="medico_asignado")
     citas: Mapped[List["Cita"]] = relationship(back_populates="medico")
     predicciones: Mapped[List["Prediccion"]] = relationship(back_populates="medico")
+    feedbacks: Mapped[List["PrediccionFeedback"]] = relationship(back_populates="medico")
     auditorias: Mapped[List["Auditoria"]] = relationship(back_populates="usuario")
