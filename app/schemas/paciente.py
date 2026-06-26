@@ -57,7 +57,7 @@ class PacientePerfilResponse(BaseModel):
     edad_madre: Optional[int] = None
     edad_gestacional_semanas: Optional[int] = None
     longitud_cervical_mm: Optional[Decimal] = None
-    embarazo_multiple: Optional[bool] = None
+    embarazo_multiple: Optional[int] = None
     parto_prematuro_previo: Optional[bool] = None
     hipertension_gestacional: Optional[bool] = None
     bmi: Optional[Decimal] = None
@@ -75,7 +75,7 @@ class PacientePerfilResponse(BaseModel):
 class DatosClinicosBase(BaseModel):
     edad_gestacional_semanas: Optional[int] = Field(None, ge=20, le=45)
     longitud_cervical_mm: Optional[Decimal] = None
-    embarazo_multiple: bool = False
+    embarazo_multiple: int = Field(1, ge=1, le=3)
     parto_prematuro_previo: bool = False
     hipertension_gestacional: bool = False
     bmi: Optional[Decimal] = None

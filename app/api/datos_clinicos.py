@@ -46,10 +46,39 @@ async def actualizar_datos_clinicos(
     return await DatosClinicosService.actualizar(db, paciente_id, data)
 
 
+@router.post(
+    "/{paciente_id}/analizar",
+    response_model=PrediccionAnalizarResponse,
+    status_code=201,
+    summary="Crear datos clínicos y ejecutar pipeline completo (S-2+S-3+S-4)",
+)
+async def crear_y_analizar(
+    paciente_id: int,
+    data: DatosClinicosCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    usuario: Annotated[Usuario, Depends(verificar_permiso("datos_clinicos", "crear"))],
+):
+    try:
+        datos = await DatosClinicosService.crear(db, paciente_id, data)
+        prediccion = await PrediccionService.ejecutar_pipeline_completo(
+            db, paciente_id, medico=usuario
+        )
+        return PrediccionAnalizarResponse(
+            datos_clinicos=DatosClinicosResponse.model_validate(datos).model_dump(),
+            prediccion=prediccion,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.detail) from exc
+    except BadRequestError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.detail) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+
 @router.put(
     "/{paciente_id}/analizar",
     response_model=PrediccionAnalizarResponse,
-    summary="Actualizar datos clínicos y ejecutar predicción consenso",
+    summary="Actualizar datos clínicos y ejecutar pipeline completo (S-2+S-3+S-4)",
 )
 async def actualizar_y_analizar(
     paciente_id: int,
@@ -59,7 +88,7 @@ async def actualizar_y_analizar(
 ):
     try:
         datos = await DatosClinicosService.actualizar(db, paciente_id, data)
-        prediccion = await PrediccionService.ejecutar_consenso_para_paciente(
+        prediccion = await PrediccionService.ejecutar_pipeline_completo(
             db, paciente_id, medico=usuario
         )
         return PrediccionAnalizarResponse(

@@ -4,7 +4,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, SmallInteger, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -22,7 +22,7 @@ class DatosClinicos(Base):
     )
     edad_gestacional_semanas: Mapped[Optional[int]] = mapped_column(Integer)
     longitud_cervical_mm: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))
-    embarazo_multiple: Mapped[bool] = mapped_column(Boolean, default=False)
+    embarazo_multiple: Mapped[int] = mapped_column(SmallInteger, default=1)
     parto_prematuro_previo: Mapped[bool] = mapped_column(Boolean, default=False)
     hipertension_gestacional: Mapped[bool] = mapped_column(Boolean, default=False)
     bmi: Mapped[Optional[Decimal]] = mapped_column(Numeric(5, 2))

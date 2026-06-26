@@ -154,25 +154,25 @@ PACIENTES = [
 DATOS_CLINICOS = [
     {
         "edad_gestacional_semanas": 32,  "longitud_cervical_mm": 22.5,
-        "embarazo_multiple": False,      "parto_prematuro_previo": True,
+        "embarazo_multiple": 2,           "parto_prematuro_previo": True,
         "hipertension_gestacional": False, "bmi": 24.1, "bmi_categoria": "normal",
         "num_condiciones_cronicas": 1,   "infeccion_activa": False,
     },
     {
         "edad_gestacional_semanas": 28,  "longitud_cervical_mm": 18.0,
-        "embarazo_multiple": True,       "parto_prematuro_previo": False,
+        "embarazo_multiple": 2,           "parto_prematuro_previo": False,
         "hipertension_gestacional": True, "bmi": 31.5, "bmi_categoria": "obesidad_I",
         "num_condiciones_cronicas": 2,   "infeccion_activa": True,
     },
     {
         "edad_gestacional_semanas": 37,  "longitud_cervical_mm": 35.0,
-        "embarazo_multiple": False,      "parto_prematuro_previo": False,
+        "embarazo_multiple": 1,           "parto_prematuro_previo": False,
         "hipertension_gestacional": False, "bmi": 22.0, "bmi_categoria": "normal",
         "num_condiciones_cronicas": 0,   "infeccion_activa": False,
     },
     {
         "edad_gestacional_semanas": 24,  "longitud_cervical_mm": 15.5,
-        "embarazo_multiple": True,       "parto_prematuro_previo": True,
+        "embarazo_multiple": 3,           "parto_prematuro_previo": True,
         "hipertension_gestacional": True, "bmi": 35.2, "bmi_categoria": "obesidad_II",
         "num_condiciones_cronicas": 3,   "infeccion_activa": True,
     },

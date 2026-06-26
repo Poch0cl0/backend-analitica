@@ -30,9 +30,9 @@ def datos_clinicos_a_s2(paciente: Paciente, dc: DatosClinicos) -> dict:
     return {
         "mager":                    float(_edad_en_anios(paciente.fecha_nacimiento)),
         "rf_ppterm":                "Y" if dc.parto_prematuro_previo else "N",
-        "dplural":                  2 if dc.embarazo_multiple else 1,
+        "dplural":                  int(dc.embarazo_multiple),
         "num_condiciones_cronicas": int(dc.num_condiciones_cronicas),
-        "infeccion_activa":         1 if dc.infeccion_activa else 0,
+        "infeccion_activa":         int(dc.infeccion_activa),
         "priorlive":                int(dc.num_partos_previos_vivos),
         "bmi":                      float(dc.bmi) if dc.bmi else 22.0,
         "cl_sim_mm":                float(dc.longitud_cervical_mm) if dc.longitud_cervical_mm else 30.0,
@@ -96,6 +96,9 @@ class PrediccionService:
         await PrediccionService._generar_triage_automatico(
             db, paciente_id, prediccion.id, medico
         )
+        await PrediccionService._generar_recomendaciones_automatico(
+            db, paciente_id, prediccion.id, medico
+        )
         return {
             "prediccion_id": prediccion.id,
             "prob_consenso": resultado["prob_consenso"],
@@ -109,21 +112,69 @@ class PrediccionService:
         paciente_id: int,
         prediccion_id: int,
         medico: Optional[Usuario] = None,
+        force: bool = False,
     ) -> None:
-        """Tras guardar una predicción, registra triaje automáticamente si aún no existe."""
+        """Tras guardar una predicción, registra triaje automáticamente."""
         from app.services.triage_service import TriageService
 
-        existe = await db.execute(
-            select(Triage.id).where(Triage.paciente_id == paciente_id).limit(1)
-        )
-        if existe.scalar_one_or_none() is not None:
-            return
+        if not force:
+            existe = await db.execute(
+                select(Triage.id).where(Triage.paciente_id == paciente_id).limit(1)
+            )
+            if existe.scalar_one_or_none() is not None:
+                return
         try:
             await TriageService.ejecutar_para_paciente(
                 db, paciente_id, prediccion_id, medico=medico
             )
         except Exception:
             pass
+
+    @staticmethod
+    async def _generar_recomendaciones_automatico(
+        db: AsyncSession,
+        paciente_id: int,
+        prediccion_id: int,
+        medico: Optional[Usuario] = None,
+    ) -> None:
+        """Genera recomendaciones S-4 automáticamente después de una predicción."""
+        from app.services.recomendacion_service import RecomendacionService
+
+        try:
+            await RecomendacionService.ejecutar_para_paciente(
+                db, paciente_id, prediccion_id, medico=medico
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    async def ejecutar_pipeline_completo(
+        db: AsyncSession,
+        paciente_id: int,
+        medico: Optional[Usuario] = None,
+    ) -> dict:
+        """
+        Ejecuta el pipeline completo:
+          S-2 (consenso) → guardar → S-3 (triaje, forza re-cálculo) → S-4 (recomendaciones)
+        """
+        paciente, dc = await PrediccionService._obtener_paciente_con_datos(db, paciente_id)
+        datos_modelo = datos_clinicos_a_s2(paciente, dc)
+        resultado = predecir_s2_consenso(datos_modelo)
+        prediccion = await PrediccionService.guardar_consenso(
+            db, paciente_id, datos_modelo, resultado, medico
+        )
+        await PrediccionService._generar_triage_automatico(
+            db, paciente_id, prediccion.id, medico, force=True
+        )
+        await PrediccionService._generar_recomendaciones_automatico(
+            db, paciente_id, prediccion.id, medico
+        )
+        return {
+            "prediccion_id": prediccion.id,
+            "prob_consenso": resultado["prob_consenso"],
+            "nivel_riesgo": resultado["nivel_riesgo"],
+            "modelos": resultado["modelos"],
+        }
 
     @staticmethod
     async def obtener_ultima_consenso(db: AsyncSession, paciente_id: int) -> dict | None:
